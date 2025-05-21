@@ -61,9 +61,7 @@ async def save_notification(phone: str, task_id: int, notify_times: List[str]):
 def calculate_notification_times(due_date: datetime) -> List[str]:
     """Calculate notification times for a task"""
     return [
-        (due_date - timedelta(days=7)).isoformat(),
         (due_date - timedelta(days=3)).isoformat(),
         (due_date - timedelta(days=1)).isoformat(),
-        (due_date - timedelta(hours=12)).isoformat(),
-        (due_date - timedelta(hours=3)).isoformat()
+        (due_date - timedelta(hours=1)).isoformat()
     ] 

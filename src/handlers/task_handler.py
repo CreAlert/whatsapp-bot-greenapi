@@ -22,13 +22,13 @@ class TaskHandler:
             """Handle all messages in CLASS_SELECTION state"""
             if notification.message_text == "0":
                 notification.answer(
-                    "*Hallo Skremates!* 👋🏻\n"
-                    "*Selamat datang di Crealert!* 🚨📖\n"
-                    "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-                    "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-                    "Silakan pilih menu:\n"
+                    "*Hi, Skremates!* 💸\n\n"
+                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    
+                    "Apa yang ingin kamu akses?\n\n"
+                    
                     "1. Lihat Tugas\n"
-                    "2. Menu Admin\n\n"
+                    "2. Panel Ketua Kelas\n\n"
                     "Ketik angka pilihan kamu *(1-2)*"
                 )
                 notification.state_manager.update_state(notification.sender, States.INITIAL)
@@ -45,13 +45,13 @@ class TaskHandler:
             """Handle all messages in DAY_SELECTION state"""
             if notification.message_text == "0":
                 notification.answer(
-                    "*Hallo Skremates!* 👋🏻\n"
-                    "*Selamat datang di Crealert!* 🚨📖\n"
-                    "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-                    "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-                    "Silakan pilih menu:\n"
+                    "*Hi, Skremates!* 💸\n\n"
+                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    
+                    "Apa yang ingin kamu akses?\n\n"
+                    
                     "1. Lihat Tugas\n"
-                    "2. Menu Admin\n\n"
+                    "2. Panel Ketua Kelas\n\n"
                     "Ketik angka pilihan kamu *(1-2)*"
                 )
                 notification.state_manager.update_state(notification.sender, States.INITIAL)
@@ -68,13 +68,13 @@ class TaskHandler:
             """Handle all messages in TASK_LIST state"""
             if notification.message_text == "0":
                 notification.answer(
-                    "*Hallo Skremates!* 👋🏻\n"
-                    "*Selamat datang di Crealert!* 🚨📖\n"
-                    "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-                    "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-                    "Silakan pilih menu:\n"
+                    "*Hi, Skremates!* 💸\n\n"
+                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    
+                    "Apa yang ingin kamu akses?\n\n"
+                    
                     "1. Lihat Tugas\n"
-                    "2. Menu Admin\n\n"
+                    "2. Panel Ketua Kelas\n\n"
                     "Ketik angka pilihan kamu *(1-2)*"
                 )
                 notification.state_manager.update_state(notification.sender, States.INITIAL)
@@ -97,20 +97,20 @@ class TaskHandler:
             """Handle all messages in NOTIFICATION_SETUP state"""
             if notification.message_text == "0":
                 notification.answer(
-                    "*Hallo Skremates!* 👋🏻\n"
-                    "*Selamat datang di Crealert!* 🚨📖\n"
-                    "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-                    "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-                    "Silakan pilih menu:\n"
+                    "*Hi, Skremates!* 💸\n\n"
+                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    
+                    "Apa yang ingin kamu akses?\n\n"
+                    
                     "1. Lihat Tugas\n"
-                    "2. Menu Admin\n\n"
+                    "2. Panel Ketua Kelas\n\n"
                     "Ketik angka pilihan kamu *(1-2)*"
                 )
                 notification.state_manager.update_state(notification.sender, States.INITIAL)
             elif notification.message_text == "1":
                 # Send immediate response
                 notification.answer(
-                    "⏳ *Mengatur pengingat...*\n\n"
+                    "⏳ *Mengatur reminder...*\n\n"
                     "Mohon tunggu sebentar..."
                 )
                 
@@ -137,22 +137,23 @@ class TaskHandler:
                     
                     if response.data:
                         notification.answer(
-                            "✅ *Notifikasi berhasil diatur!*\n\n"
-                            f"Kamu akan menerima pengingat untuk tugas:\n"
+                            "✅ *Reminder berhasil diatur!*\n\n"
+                            f"Kamu akan menerima reminder untuk tugas:\n"
                             f"📝 {task['name']}\n\n"
-                            "Pengingat akan dikirim:\n"
-                            "- 1 minggu sebelum\n- 3 hari sebelum\n"
-                            "- 1 hari sebelum\n- 12 jam sebelum\n- 3 jam sebelum"
+                            "Reminder akan dikirim:\n"
+                            "- 3 hari sebelum\n"
+                            "- 1 hari sebelum\n"
+                            "- 3 jam sebelum"
                         )
                         # Show task menu after setting reminder
                         notification.answer(
-                            "*Hallo Skremates!* 👋🏻\n"
-                            "*Selamat datang di Crealert!* 🚨📖\n"
-                            "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-                            "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-                            "Silakan pilih menu:\n"
+                            "*Hi, Skremates!* 💸\n\n"
+                            "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                            
+                            "Apa yang ingin kamu akses?\n\n"
+                            
                             "1. Lihat Tugas\n"
-                            "2. Menu Admin\n\n"
+                            "2. Panel Ketua Kelas\n\n"
                             "Ketik angka pilihan kamu *(1-2)*"
                         )
                         notification.state_manager.update_state(notification.sender, States.INITIAL)
@@ -165,7 +166,7 @@ class TaskHandler:
                     logger.error(f"Error saving notification: {e}")
                     notification.answer(
                         "❌ *Terjadi kesalahan*\n\n"
-                        "Gagal mengatur pengingat. Silakan coba lagi nanti."
+                        "Gagal mengatur reminder. Silakan coba lagi nanti."
                     )
             elif notification.message_text == "2":
                 self.skip_reminder_handler(notification)
@@ -180,10 +181,11 @@ class TaskHandler:
         class_list = "\n".join([f"{num}. {name}" for num, name in classes.items()])
         
         notification.answer(
-            "*🧑‍🏫 Pilih kelas kamu:* \n\n" +
+            "*🧑‍🏫 *Pilih Kelasmu:* 👩‍🏫* \n\n" +
             class_list +
-            "\n\nKetik angka kelas (1-8)\n"
-            "Ketik 0 untuk kembali ke menu utama"
+            "\n\n_Note:_\n"
+            "Ketik angka sesuai pilihan\n"
+            "Ketik 0 untuk kembali ke Home"
         )
         
         update_state_with_history(notification, States.CLASS_SELECTION)
@@ -208,10 +210,11 @@ class TaskHandler:
             )
             
             notification.answer(
-                "*🗓️ Silakan pilih hari:*\n\n" +
+                "*🗓️ Pilih Hari Pengumpulan: 🗓️*\n\n" +
                 day_list +
-                "\n\nKetik angka hari (1-7)\n"
-                "Ketik 0 untuk kembali ke menu utama"
+                "\n\n_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )
             
             update_state_with_history(notification, States.DAY_SELECTION)
@@ -247,13 +250,13 @@ class TaskHandler:
                 )
                 # Show task menu after no tasks found
                 notification.answer(
-                    "*Hallo Skremates!* 👋🏻\n"
-                    "*Selamat datang di Crealert!* 🚨📖\n"
-                    "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-                    "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-                    "Silakan pilih menu:\n"
+                    "*Hi, Skremates!* 💸\n\n"
+                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    
+                    "Apa yang ingin kamu akses?\n\n"
+                    
                     "1. Lihat Tugas\n"
-                    "2. Menu Admin\n\n"
+                    "2. Panel Ketua Kelas\n\n"
                     "Ketik angka pilihan kamu *(1-2)*"
                 )
                 notification.state_manager.update_state(notification.sender, States.INITIAL)
@@ -276,14 +279,16 @@ class TaskHandler:
                 due_date_str = due_date.strftime('%d/%m/%Y %H:%M')
                 tasks_list += (
                     f"{idx}. {task['name']}\n"
-                    f"   ⏰ {due_date_str}\n\n"
+                    f"🗒️ {task['description']}\n"
+                    f"⏰ {due_date_str}\n\n"
                 )
             
             notification.answer(
-                f"📚 Tugas untuk hari {day_name}:\n\n" +
+                f"📚 Tugas untuk hari *{day_name}*:\n\n" +
                 tasks_list +
-                "Ketik nomor tugas untuk melihat detail (1-{})\n"
-                "Ketik 0 untuk kembali ke menu utama".format(len(tasks))
+                "_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )    
             
             update_state_with_history(notification, States.TASK_LIST)
@@ -314,7 +319,9 @@ class TaskHandler:
                 "1. ✅ Ya\n"
                 "2. ❌ Tidak\n"
                 "0. Kembali ke Menu Utama\n\n"
-                "Ketik pilihan kamu (0-2)"
+                "_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )
             
             notification.state_manager.update_state_data(
@@ -335,17 +342,17 @@ class TaskHandler:
     def skip_reminder_handler(self, notification):
         """Handle when user chooses not to set reminder"""
         notification.answer(
-            "ℹ️ Tidak ada pengingat yang diatur untuk tugas ini."
+            "ℹ️ Tidak ada reminder yang diatur untuk tugas ini."
         )
         # Show task menu after skipping reminder
         notification.answer(
-            "*Hallo Skremates!* 👋🏻\n"
-            "*Selamat datang di Crealert!* 🚨📖\n"
-            "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-            "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-            "Silakan pilih menu:\n"
+            "*Hi, Skremates!* 💸\n\n"
+            "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+            
+            "Apa yang ingin kamu akses?\n\n"
+            
             "1. Lihat Tugas\n"
-            "2. Menu Admin\n\n"
+            "2. Panel Ketua Kelas\n\n"
             "Ketik angka pilihan kamu *(1-2)*"
         )
         notification.state_manager.update_state(notification.sender, States.INITIAL)
@@ -357,13 +364,13 @@ class TaskHandler:
         if current_state == States.INITIAL:
             notification.answer(
                 "⚠️ *Input tidak valid!*\n\n"
-                "*Hallo Skremates!* 👋🏻\n"
-                "*Selamat datang di Crealert!* 🚨📖\n"
-                "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-                "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-                "Silakan pilih menu:\n"
+                "*Hi, Skremates!* 💸\n\n"
+                "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                
+                "Apa yang ingin kamu akses?\n\n"
+                
                 "1. Lihat Tugas\n"
-                "2. Menu Admin\n\n"
+                "2. Panel Ketua Kelas\n\n"
                 "Ketik angka pilihan kamu *(1-2)*"
             )
         elif current_state == States.CLASS_SELECTION:
@@ -373,10 +380,11 @@ class TaskHandler:
             
             notification.answer(
                 "⚠️ *Input tidak valid!*\n\n"
-                "*🧑‍🏫 Pilih kelas kamu:* \n\n" +
+                "*🧑‍🏫 *Pilih Kelasmu:* 👩‍🏫* \n\n" +
                 class_list +
-                "\n\nKetik angka kelas (1-8)\n"
-                "Ketik 0 untuk kembali ke menu utama"
+                "\n\n_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )
         elif current_state == States.DAY_SELECTION:
             days_response = supabase.table('days').select('id, name').order('id').execute()
@@ -385,10 +393,11 @@ class TaskHandler:
             
             notification.answer(
                 "⚠️ *Input tidak valid!*\n\n"
-                "*🗓️ Silakan pilih hari:*\n\n" +
+                "*🗓️ Pilih Hari Pengumpulan: 🗓️*\n\n" +
                 day_list +
-                "\n\nKetik angka hari (1-7)\n"
-                "Ketik 0 untuk kembali ke menu utama"
+                "\n\n_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )
         elif current_state == States.TASK_LIST:
             tasks = state_data.get("tasks", [])
@@ -402,15 +411,17 @@ class TaskHandler:
                 due_date_str = due_date.strftime('%d/%m/%Y %H:%M')
                 tasks_list += (
                     f"{idx}. {task['name']}\n"
-                    f"   ⏰ {due_date_str}\n\n"
+                    f"🗒️ {task['description']}\n"
+                    f"⏰ {due_date_str}\n\n"
                 )
             
             notification.answer(
                 "⚠️ *Input tidak valid!*\n\n"
-                f"📚 Tugas untuk hari {day_name}:\n\n" +
+                f"📚 Tugas untuk hari *{day_name}*:\n\n" +
                 tasks_list +
-                "Ketik nomor tugas untuk melihat detail (1-{})\n"
-                "Ketik 0 untuk kembali ke menu utama".format(len(tasks))
+                "_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )
         elif current_state == States.NOTIFICATION_SETUP:
             task = state_data.get("selected_task")
@@ -428,5 +439,7 @@ class TaskHandler:
                 "1. ✅ Ya\n"
                 "2. ❌ Tidak\n"
                 "0. Kembali ke Menu Utama\n\n"
-                "Ketik pilihan kamu (0-2)"
+                "_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             ) 

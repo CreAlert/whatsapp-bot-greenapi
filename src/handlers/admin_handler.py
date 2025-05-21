@@ -23,210 +23,412 @@ class AdminHandler:
             if not is_admin(notification.sender):
                 notification.answer(
                     "⛔ *Akses Ditolak*\n\n"
-                    "Maaf, kamu tidak memiliki akses ke menu admin.\n"
+                    "Maaf, kamu tidak memiliki akses ke panel ketua kelas.\n"
                     "Silakan pilih menu lain."
                 )
                 return
             
             notification.answer(
-                "*🛠️ Menu Admin*\n\n"
+                "*🛠️ Panel Ketua Kelas*\n\n"
                 "1. Tambah Tugas Baru\n"
-                "2. Lihat Daftar Admin\n"
-                "3. Kembali ke Menu Utama\n\n"
-                "Ketik pilihan kamu (1-3)"
+                "2. Kembali ke Menu Utama\n\n"
+                "_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )
             update_state_with_history(notification, States.ADMIN_MENU)
 
         @self.bot.router.message(
             type_message="textMessage",
             state=States.ADMIN_MENU,
-            regexp=r"^3$"
+            regexp=r"^2$"
         )
         def admin_menu_back_handler(notification):
             """Handle back navigation from admin menu"""
             # Return to main menu
             notification.answer(
-                "*Hallo Skremates!* 👋🏻\n"
-                "*Selamat datang di Crealert!* 🚨📖\n"
-                "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-                "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-                "Silakan pilih menu:\n"
+                "*Hi, Skremates!* 💸\n\n"
+                "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                
+                "Apa yang ingin kamu akses?\n\n"
+                
                 "1. Lihat Tugas\n"
-                "2. Menu Admin\n\n"
-                "Ketik angka pilihan kamu *(1-2)*"
+                "2. Panel Ketua Kelas\n\n"
+                "_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )
             notification.state_manager.update_state(notification.sender, States.INITIAL)
 
         @self.bot.router.message(
             type_message="textMessage",
             state=States.ADMIN_MENU,
-            regexp=r"^(1|2)$"
+            regexp=r"^1$"
         )
         def admin_menu_selection_handler(notification):
             """Handle admin menu selections"""
-            if notification.message_text == "1":
-                self.start_add_task_flow(notification)
-            elif notification.message_text == "2":
-                self.show_admin_list(notification)
-            else:
-                notification.answer(
-                    "⚠️ *Input tidak valid*\n\n"
-                    "Silakan pilih menu admin:\n"
-                    "1. Tambah Tugas Baru\n"
-                    "2. Lihat Daftar Admin\n"
-                    "3. Kembali ke Menu Utama\n\n"
-                    "Ketik pilihan kamu (1-3)"
-                )
+            self.start_add_task_flow(notification)
 
         @self.bot.router.message(
             type_message="textMessage",
-            state=States.ADMIN_ADD_TASK
+            state=States.ADMIN_CLASS_SELECTION
         )
-        def handle_task_input(notification):
-            """Handle task data input"""
-            if notification.message_text.lower() == "batal":
-                # Return to admin menu
+        def admin_class_selection_handler(notification):
+            """Handle class selection in admin flow"""
+            if notification.message_text == "0":
                 notification.answer(
-                    "*🛠️ Menu Admin*\n\n"
+                    "*🛠️ Panel Ketua Kelas*\n\n"
                     "1. Tambah Tugas Baru\n"
-                    "2. Lihat Daftar Admin\n"
-                    "3. Kembali ke Menu Utama\n\n"
-                    "Ketik pilihan kamu (1-3)"
+                    "2. Kembali ke Menu Utama\n\n"
+                    "_Note:_\n"
+                    "Ketik angka sesuai pilihan\n"
+                    "Ketik 0 untuk kembali ke Home"
                 )
                 update_state_with_history(notification, States.ADMIN_MENU)
                 return
-            
-            try:
-                # Parse input
-                parts = notification.message_text.split("|")
-                if len(parts) != 6:
-                    raise ValueError("Format harus terdiri dari 6 bagian dipisahkan oleh |")
-                
-                class_id, day_id, name, description, jenis, due_date_str = parts
-                
-                # Validasi input
-                if not class_id.isdigit() or int(class_id) not in range(1, 9):
-                    raise ValueError("Kelas harus angka antara 1-8")
-                
-                if not day_id.isdigit() or int(day_id) not in range(1, 8):
-                    raise ValueError("Hari harus angka antara 1-7")
-                
-                if not name.strip():
-                    raise ValueError("Nama tugas tidak boleh kosong")
-                
-                jenis_tugas = jenis.lower().strip()
-                if jenis_tugas not in ['mandiri', 'kelompok', 'ujian']:
-                    raise ValueError("Jenis tugas harus mandiri/kelompok/ujian")
-                
-                try:
-                    due_date = datetime.strptime(due_date_str, "%d-%m-%Y %H:%M")
-                    if due_date < datetime.now():
-                        raise ValueError("Deadline tidak boleh di masa lalu")
-                except ValueError:
-                    raise ValueError("Format deadline harus DD-MM-YYYY HH:MM")
 
-                # Dapatkan admin_id dari database
-                admin_response = supabase.table("users") \
-                    .select("id") \
-                    .eq("phone_number", notification.sender) \
-                    .execute()
+            if not notification.message_text.isdigit() or int(notification.message_text) not in range(1, 9):
+                response = supabase.table('classes').select('id, name').order('id').execute()
+                classes = {str(item['id']): item['name'] for item in response.data}
+                class_list = "\n".join([f"{num}. {name}" for num, name in classes.items()])
                 
-                if not admin_response.data:
-                    raise ValueError("Admin tidak ditemukan di database")
-                
-                admin_id = admin_response.data[0]["id"]
+                notification.answer(
+                    "⚠️ *Input tidak valid!*\n\n"
+                    "*🧑‍🏫 Pilih Kelas:*\n\n" +
+                    class_list +
+                    "\n\n_Note:_\n"
+                    "Ketik angka sesuai pilihan\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                return
 
-                # Simpan ke database
-                task_data = {
-                    "class_id": int(class_id),
-                    "day_id": int(day_id),
-                    "name": name.strip(),
-                    "description": description.strip(),
-                    "jenis_tugas": jenis_tugas,
-                    "due_date": due_date.isoformat(),
-                    "created_by": admin_id
+            notification.state_manager.update_state_data(
+                notification.sender,
+                {
+                    "selected_class_id": notification.message_text,
+                    **notification.state_manager.get_state_data(notification.sender)
                 }
+            )
+            
+            # Get days from database
+            days_response = supabase.table('days').select('id, name').order('id').execute()
+            days = {str(item['id']): item['name'] for item in days_response.data}
+            day_list = "\n".join([f"{num}. {name}" for num, name in days.items()])
+            
+            notification.answer(
+                "*🗓️ Pilih Hari Pengumpulan:*\n\n" +
+                day_list +
+                "\n\n_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
+            )
+            update_state_with_history(notification, States.ADMIN_DAY_SELECTION)
+
+        @self.bot.router.message(
+            type_message="textMessage",
+            state=States.ADMIN_DAY_SELECTION
+        )
+        def admin_day_selection_handler(notification):
+            """Handle day selection in admin flow"""
+            if notification.message_text == "0":
+                response = supabase.table('classes').select('id, name').order('id').execute()
+                classes = {str(item['id']): item['name'] for item in response.data}
+                class_list = "\n".join([f"{num}. {name}" for num, name in classes.items()])
                 
+                notification.answer(
+                    "*🧑‍🏫 Pilih Kelas:*\n\n" +
+                    class_list +
+                    "\n\n_Note:_\n"
+                    "Ketik angka sesuai pilihan\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                update_state_with_history(notification, States.ADMIN_CLASS_SELECTION)
+                return
+
+            if not notification.message_text.isdigit() or int(notification.message_text) not in range(1, 8):
+                days_response = supabase.table('days').select('id, name').order('id').execute()
+                days = {str(item['id']): item['name'] for item in days_response.data}
+                day_list = "\n".join([f"{num}. {name}" for num, name in days.items()])
+                
+                notification.answer(
+                    "⚠️ *Input tidak valid!*\n\n"
+                    "*🗓️ Pilih Hari Pengumpulan:*\n\n" +
+                    day_list +
+                    "\n\n_Note:_\n"
+                    "Ketik angka sesuai pilihan\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                return
+
+            notification.state_manager.update_state_data(
+                notification.sender,
+                {
+                    "selected_day_id": notification.message_text,
+                    **notification.state_manager.get_state_data(notification.sender)
+                }
+            )
+            
+            notification.answer(
+                "*📝 Masukkan Nama Tugas:*\n\n"
+                "_Note:_\n"
+                "Ketik nama tugas\n"
+                "Ketik 0 untuk kembali ke Home"
+            )
+            update_state_with_history(notification, States.ADMIN_TASK_NAME)
+
+        @self.bot.router.message(
+            type_message="textMessage",
+            state=States.ADMIN_TASK_NAME
+        )
+        def admin_task_name_handler(notification):
+            """Handle task name input in admin flow"""
+            if notification.message_text == "0":
+                days_response = supabase.table('days').select('id, name').order('id').execute()
+                days = {str(item['id']): item['name'] for item in days_response.data}
+                day_list = "\n".join([f"{num}. {name}" for num, name in days.items()])
+                
+                notification.answer(
+                    "*🗓️ Pilih Hari Pengumpulan:*\n\n" +
+                    day_list +
+                    "\n\n_Note:_\n"
+                    "Ketik angka sesuai pilihan\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                update_state_with_history(notification, States.ADMIN_DAY_SELECTION)
+                return
+
+            if not notification.message_text.strip():
+                notification.answer(
+                    "⚠️ *Input tidak valid!*\n\n"
+                    "*📝 Masukkan Nama Tugas:*\n\n"
+                    "_Note:_\n"
+                    "Ketik nama tugas\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                return
+
+            notification.state_manager.update_state_data(
+                notification.sender,
+                {
+                    "task_name": notification.message_text.strip(),
+                    **notification.state_manager.get_state_data(notification.sender)
+                }
+            )
+            
+            notification.answer(
+                "*📂 Pilih Jenis Tugas:*\n\n"
+                "1. Mandiri\n"
+                "2. Kelompok\n"
+                "3. Ujian\n\n"
+                "_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
+            )
+            update_state_with_history(notification, States.ADMIN_TASK_TYPE)
+
+        @self.bot.router.message(
+            type_message="textMessage",
+            state=States.ADMIN_TASK_TYPE
+        )
+        def admin_task_type_handler(notification):
+            """Handle task type selection in admin flow"""
+            if notification.message_text == "0":
+                notification.answer(
+                    "*📝 Masukkan Nama Tugas:*\n\n"
+                    "_Note:_\n"
+                    "Ketik nama tugas\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                update_state_with_history(notification, States.ADMIN_TASK_NAME)
+                return
+
+            task_types = {
+                "1": "mandiri",
+                "2": "kelompok",
+                "3": "ujian"
+            }
+
+            if notification.message_text not in task_types:
+                notification.answer(
+                    "⚠️ *Input tidak valid!*\n\n"
+                    "*📂 Pilih Jenis Tugas:*\n\n"
+                    "1. Mandiri\n"
+                    "2. Kelompok\n"
+                    "3. Ujian\n\n"
+                    "_Note:_\n"
+                    "Ketik angka sesuai pilihan\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                return
+
+            notification.state_manager.update_state_data(
+                notification.sender,
+                {
+                    "task_type": task_types[notification.message_text],
+                    **notification.state_manager.get_state_data(notification.sender)
+                }
+            )
+            
+            notification.answer(
+                "*📖 Masukkan Deskripsi Tugas:*\n\n"
+                "_Note:_\n"
+                "Ketik deskripsi tugas\n"
+                "Ketik 0 untuk kembali ke Home"
+            )
+            update_state_with_history(notification, States.ADMIN_TASK_DESCRIPTION)
+
+        @self.bot.router.message(
+            type_message="textMessage",
+            state=States.ADMIN_TASK_DESCRIPTION
+        )
+        def admin_task_description_handler(notification):
+            """Handle task description input in admin flow"""
+            if notification.message_text == "0":
+                notification.answer(
+                    "*📂 Pilih Jenis Tugas:*\n\n"
+                    "1. Mandiri\n"
+                    "2. Kelompok\n"
+                    "3. Ujian\n\n"
+                    "_Note:_\n"
+                    "Ketik angka sesuai pilihan\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                update_state_with_history(notification, States.ADMIN_TASK_TYPE)
+                return
+
+            notification.state_manager.update_state_data(
+                notification.sender,
+                {
+                    "task_description": notification.message_text.strip(),
+                    **notification.state_manager.get_state_data(notification.sender)
+                }
+            )
+            
+            notification.answer(
+                "*⏰ Masukkan Deadline Tugas:*\n\n"
+                "Format: DD-MM-YYYY HH:MM\n"
+                "Contoh: 25-12-2023 23:59\n\n"
+                "_Note:_\n"
+                "Ketik deadline sesuai format\n"
+                "Ketik 0 untuk kembali ke Home"
+            )
+            update_state_with_history(notification, States.ADMIN_TASK_DEADLINE)
+
+        @self.bot.router.message(
+            type_message="textMessage",
+            state=States.ADMIN_TASK_DEADLINE
+        )
+        def admin_task_deadline_handler(notification):
+            """Handle task deadline input in admin flow"""
+            if notification.message_text == "0":
+                notification.answer(
+                    "*📖 Masukkan Deskripsi Tugas:*\n\n"
+                    "_Note:_\n"
+                    "Ketik deskripsi tugas\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                update_state_with_history(notification, States.ADMIN_TASK_DESCRIPTION)
+                return
+
+            try:
+                due_date = datetime.strptime(notification.message_text, "%d-%m-%Y %H:%M")
+                if due_date < datetime.now():
+                    raise ValueError("Deadline tidak boleh di masa lalu")
+            except ValueError as e:
+                notification.answer(
+                    "⚠️ *Input tidak valid!*\n\n"
+                    "*⏰ Masukkan Deadline Tugas:*\n\n"
+                    "Format: DD-MM-YYYY HH:MM\n"
+                    "Contoh: 25-12-2023 23:59\n\n"
+                    "_Note:_\n"
+                    "Ketik deadline sesuai format\n"
+                    "Ketik 0 untuk kembali ke Home"
+                )
+                return
+
+            # Get all task data from state
+            state_data = notification.state_manager.get_state_data(notification.sender)
+            
+            # Get admin_id from database
+            admin_response = supabase.table("users") \
+                .select("id") \
+                .eq("phone_number", notification.sender) \
+                .execute()
+            
+            if not admin_response.data:
+                notification.answer("❌ Admin tidak ditemukan di database")
+                return
+            
+            admin_id = admin_response.data[0]["id"]
+
+            # Prepare task data
+            task_data = {
+                "class_id": int(state_data["selected_class_id"]),
+                "day_id": int(state_data["selected_day_id"]),
+                "name": state_data["task_name"],
+                "description": state_data["task_description"],
+                "jenis_tugas": state_data["task_type"],
+                "due_date": due_date.isoformat(),
+                "created_by": admin_id
+            }
+            
+            # Save to database
+            try:
                 response = supabase.table("tasks").insert(task_data).execute()
                 
                 if response.data:
                     # Get class and day names for confirmation message
                     class_response = supabase.table("classes") \
                         .select("name") \
-                        .eq("id", class_id) \
+                        .eq("id", state_data["selected_class_id"]) \
                         .execute()
-                    class_name = class_response.data[0]["name"] if class_response.data else f"Kelas {class_id}"
+                    class_name = class_response.data[0]["name"] if class_response.data else f"Kelas {state_data['selected_class_id']}"
                     
                     day_response = supabase.table("days") \
                         .select("name") \
-                        .eq("id", day_id) \
+                        .eq("id", state_data["selected_day_id"]) \
                         .execute()
-                    day_name = day_response.data[0]["name"] if day_response.data else f"Hari {day_id}"
+                    day_name = day_response.data[0]["name"] if day_response.data else f"Hari {state_data['selected_day_id']}"
 
                     notification.answer(
                         "✅ *Tugas berhasil ditambahkan!*\n\n"
                         f"📚 Kelas: {class_name}\n"
                         f"📅 Hari: {day_name}\n"
-                        f"📝 Tugas: {name.strip()}\n"
-                        f"📂 Jenis: {jenis_tugas.capitalize()}\n"
+                        f"📝 Tugas: {state_data['task_name']}\n"
+                        f"📂 Jenis: {state_data['task_type'].capitalize()}\n"
                         f"⏰ Deadline: {due_date.strftime('%d %B %Y %H:%M')}"
                     )
                 else:
                     notification.answer("❌ Gagal menyimpan tugas ke database")
-                    
             except Exception as e:
-                error_msg = str(e)
-                notification.answer(
-                    f"⚠️ *Error:* {error_msg}\n\n"
-                    "Format yang benar:\n"
-                    "*Kelas|Hari|Nama Tugas|Deskripsi|Jenis|Deadline*\n\n"
-                    "Contoh:\n"
-                    "3|2|Laporan Praktikum|Buat laporan praktikum minggu 5|mandiri|25-12-2023 23:59\n\n"
-                    "Keterangan:\n"
-                    "- Kelas: 1-8\n"
-                    "- Hari: 1-7\n"
-                    "- Jenis: mandiri/kelompok/ujian\n"
-                    "- Deadline: DD-MM-YYYY HH:MM"
-                )
-            
-            # Kembali ke menu admin
-            update_state_with_history(notification, States.ADMIN_MENU)
+                logger.error(f"Error saving task: {e}")
+                notification.answer("❌ Terjadi kesalahan saat menyimpan tugas")
+
+            # Return to admin menu
             notification.answer(
-                "*🛠️ Menu Admin*\n\n"
+                "*🛠️ Panel Ketua Kelas*\n\n"
                 "1. Tambah Tugas Baru\n"
-                "2. Lihat Daftar Admin\n"
-                "3. Kembali ke Menu Utama\n\n"
-                "Ketik pilihan kamu (1-3)"
+                "2. Kembali ke Menu Utama\n\n"
+                "_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
             )
+            update_state_with_history(notification, States.ADMIN_MENU)
 
     def start_add_task_flow(self, notification):
-        """Start simplified task addition flow"""
+        """Start the task addition flow"""
+        response = supabase.table('classes').select('id, name').order('id').execute()
+        classes = {str(item['id']): item['name'] for item in response.data}
+        class_list = "\n".join([f"{num}. {name}" for num, name in classes.items()])
+        
         notification.answer(
-            "📝 *Tambah Tugas Baru*\n\n"
-            "Silakan kirim data tugas dalam format berikut:\n\n"
-            "*Kelas|Hari|Nama Tugas|Deskripsi|Jenis|Deadline*\n\n"
-            "Contoh:\n"
-            "3|2|Laporan Praktikum|Buat laporan praktikum minggu 5|mandiri|25-12-2023 23:59\n\n"
-            "Keterangan:\n"
-            "- Kelas:\n"
-            "  1. 2022A\n"
-            "  2. 2022B\n"
-            "  3. 2023A\n"
-            "  4. 2023B\n"
-            "  5. 2023C\n"
-            "  6. 2024A\n"
-            "  7. 2024B\n"
-            "  8. 2024C\n\n"
-            "- Hari:\n"
-            "  1. Senin\n"
-            "  2. Selasa\n"
-            "  3. Rabu\n"
-            "  4. Kamis\n"
-            "  5. Jumat\n"
-            "  6. Sabtu\n"
-            "  7. Minggu"
+            "*🧑‍🏫 Pilih Kelas:*\n\n" +
+            class_list +
+            "\n\n_Note:_\n"
+            "Ketik angka sesuai pilihan\n"
+            "Ketik 0 untuk kembali ke Home"
         )
-        update_state_with_history(notification, States.ADMIN_ADD_TASK)
+        update_state_with_history(notification, States.ADMIN_CLASS_SELECTION)
 
     def show_admin_list(self, notification):
         """Show list of admin phone numbers"""
@@ -237,9 +439,8 @@ class AdminHandler:
         )
         update_state_with_history(notification, States.ADMIN_MENU)
         notification.answer(
-            "*🛠️ Menu Admin*\n\n"
+            "*🛠️ Panel Ketua Kelas*\n\n"
             "1. Tambah Tugas Baru\n"
-            "2. Lihat Daftar Admin\n"
-            "3. Kembali ke Menu Utama\n\n"
-            "Ketik pilihan kamu (1-3)"
+            "2. Kembali ke Menu Utama\n\n"
+            "Ketik pilihan kamu (1-2)"
         ) 

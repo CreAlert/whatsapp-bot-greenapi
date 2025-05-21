@@ -64,15 +64,39 @@ class NotificationWorker:
                             
                             # If it's time to send notification
                             if current_time >= notify_datetime:
-                                # Send notification
-                                message = (
-                                    "🔔 *Pengingat Tugas!*\n\n"
-                                    f"📝 *Tugas:* {task['name']}\n"
-                                    f"📖 *Deskripsi:* {task['description']}\n"
-                                    f"⏰ *Deadline:* {notify_datetime.strftime('%d/%m/%Y %H:%M')}\n"
-                                    f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
-                                    "Jangan lupa untuk menyelesaikan tugas ini ya! 🎯"
-                                )
+                                # Calculate time difference
+                                time_diff = notify_datetime - current_time
+                                days_diff = time_diff.days
+                                hours_diff = time_diff.seconds // 3600
+
+                                # Create different messages based on time difference
+                                if days_diff == 3:
+                                    message = (
+                                        "🔔 *Reminder Tugas!*\n\n"
+                                        f"📝 *Tugas:* {task['name']}\n"
+                                        f"📖 *Deskripsi:* {task['description']}\n"
+                                        f"⏰ *Deadline:* {notify_datetime.strftime('%d/%m/%Y %H:%M')}\n"
+                                        f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
+                                        "Hai, udah H-3 nih! Jangan lupa untuk menyelesaikan tugas ini ya! 🎯"
+                                    )
+                                elif days_diff == 1:
+                                    message = (
+                                        "🔔 *Reminder Tugas!*\n\n"
+                                        f"📝 *Tugas:* {task['name']}\n"
+                                        f"📖 *Deskripsi:* {task['description']}\n"
+                                        f"⏰ *Deadline:* {notify_datetime.strftime('%d/%m/%Y %H:%M')}\n"
+                                        f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
+                                        "Jgn lupa ya, udah 24 jam terakhir! 🚨"
+                                    )
+                                elif hours_diff == 1:
+                                    message = (
+                                        "🔔 *Reminder Tugas!*\n\n"
+                                        f"📝 *Tugas:* {task['name']}\n"
+                                        f"📖 *Deskripsi:* {task['description']}\n"
+                                        f"⏰ *Deadline:* {notify_datetime.strftime('%d/%m/%Y %H:%M')}\n"
+                                        f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
+                                        "Gimana udah diupload? Jgn sampe terlambat! ⚡"
+                                    )
                                 
                                 await self.bot.send_message(
                                     notification['phone_number'],

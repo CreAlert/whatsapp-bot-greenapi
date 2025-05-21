@@ -40,13 +40,13 @@ notification_worker = NotificationWorker(bot)
 def initial_handler(notification):
     """Initial message with text menu"""
     notification.answer(
-        "*Hallo Skremates!* 👋🏻\n"
-        "*Selamat datang di Crealert!* 🚨📖\n"
-        "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-        "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-        "Silakan pilih menu:\n"
+        "*Hi, Skremates!* 💸\n\n"
+        "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+        
+        "Apa yang ingin kamu akses?\n\n"
+        
         "1. Lihat Tugas\n"
-        "2. Menu Admin\n\n"
+        "2. Panel Ketua Kelas\n\n"
         "Ketik angka pilihan kamu *(1-2)*"
     )
     notification.state_manager.update_state_data(
@@ -73,13 +73,13 @@ def initial_state_handler(notification):
     else:
         notification.answer(
             "⚠️ *Input tidak valid!*\n\n"
-            "*Hallo Skremates!* 👋🏻\n"
-            "*Selamat datang di Crealert!* 🚨📖\n"
-            "_Siap bantu kamu tetap on track dan bebas dari tugas yang kelupaan._\n"
-            "*Yuk mulai cek list tugasmu hari ini!*\n\n"
-            "Silakan pilih menu:\n"
+            "*Hi, Skremates!* 💸\n\n"
+            "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+            
+            "Apa yang ingin kamu akses?\n\n"
+            
             "1. Lihat Tugas\n"
-            "2. Menu Admin\n\n"
+            "2. Panel Ketua Kelas\n\n"
             "Ketik angka pilihan kamu *(1-2)*"
         )
 
