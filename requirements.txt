@@ -25,6 +25,6 @@ urllib3==2.3.0
 whatsapp-api-client-python>=0.0.35
 whatsapp-chatbot-python>=0.9.6
 whatsapp-chatgpt-python==1.0.0
-supabase==2.3.0
+supabase==1.0.3
 psycopg2-binary>=2.9.6
 dotenv>=0.0.1
