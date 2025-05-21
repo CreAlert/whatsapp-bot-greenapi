@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
 
 # Load environment variables
 env_path = Path(__file__).parent.parent / 'config' / '.env'
@@ -10,7 +11,11 @@ load_dotenv(dotenv_path=env_path)
 # Initialize Supabase
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
-supabase: Client = create_client(supabase_url, supabase_key, options={"autoRefreshToken": True})
+options = ClientOptions(
+    auto_refresh_token=True,
+    persist_session=True
+)
+supabase: Client = create_client(supabase_url, supabase_key, options=options)
 
 # Admin configuration
 ADMIN_PHONES = os.getenv("ADMIN_PHONES", "").split(",")
