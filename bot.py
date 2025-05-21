@@ -41,7 +41,7 @@ def initial_handler(notification):
     """Initial message with text menu"""
     notification.answer(
         "*Hi, Skremates!* 💸\n\n"
-        "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+        "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
         
         "Apa yang ingin kamu akses?\n\n"
         
@@ -74,7 +74,7 @@ def initial_state_handler(notification):
         notification.answer(
             "⚠️ *Input tidak valid!*\n\n"
             "*Hi, Skremates!* 💸\n\n"
-            "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+            "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
             
             "Apa yang ingin kamu akses?\n\n"
             

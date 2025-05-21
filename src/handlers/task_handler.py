@@ -23,7 +23,7 @@ class TaskHandler:
             if notification.message_text == "0":
                 notification.answer(
                     "*Hi, Skremates!* 💸\n\n"
-                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
                     
                     "Apa yang ingin kamu akses?\n\n"
                     
@@ -46,7 +46,7 @@ class TaskHandler:
             if notification.message_text == "0":
                 notification.answer(
                     "*Hi, Skremates!* 💸\n\n"
-                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
                     
                     "Apa yang ingin kamu akses?\n\n"
                     
@@ -69,7 +69,7 @@ class TaskHandler:
             if notification.message_text == "0":
                 notification.answer(
                     "*Hi, Skremates!* 💸\n\n"
-                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
                     
                     "Apa yang ingin kamu akses?\n\n"
                     
@@ -98,7 +98,7 @@ class TaskHandler:
             if notification.message_text == "0":
                 notification.answer(
                     "*Hi, Skremates!* 💸\n\n"
-                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
                     
                     "Apa yang ingin kamu akses?\n\n"
                     
@@ -148,7 +148,7 @@ class TaskHandler:
                         # Show task menu after setting reminder
                         notification.answer(
                             "*Hi, Skremates!* 💸\n\n"
-                            "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                            "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
                             
                             "Apa yang ingin kamu akses?\n\n"
                             
@@ -181,7 +181,7 @@ class TaskHandler:
         class_list = "\n".join([f"{num}. {name}" for num, name in classes.items()])
         
         notification.answer(
-            "*🧑‍🏫 *Pilih Kelasmu:* 👩‍🏫* \n\n" +
+            "🧑‍🏫 *Pilih Kelasmu:* 👩‍🏫\n\n" +
             class_list +
             "\n\n_Note:_\n"
             "Ketik angka sesuai pilihan\n"
@@ -251,7 +251,7 @@ class TaskHandler:
                 # Show task menu after no tasks found
                 notification.answer(
                     "*Hi, Skremates!* 💸\n\n"
-                    "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                    "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
                     
                     "Apa yang ingin kamu akses?\n\n"
                     
@@ -347,7 +347,7 @@ class TaskHandler:
         # Show task menu after skipping reminder
         notification.answer(
             "*Hi, Skremates!* 💸\n\n"
-            "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+            "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
             
             "Apa yang ingin kamu akses?\n\n"
             
@@ -365,7 +365,7 @@ class TaskHandler:
             notification.answer(
                 "⚠️ *Input tidak valid!*\n\n"
                 "*Hi, Skremates!* 💸\n\n"
-                "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
                 
                 "Apa yang ingin kamu akses?\n\n"
                 
@@ -380,7 +380,7 @@ class TaskHandler:
             
             notification.answer(
                 "⚠️ *Input tidak valid!*\n\n"
-                "*🧑‍🏫 *Pilih Kelasmu:* 👩‍🏫* \n\n" +
+                "🧑‍🏫 *Pilih Kelasmu:* 👩‍🏫\n\n" +
                 class_list +
                 "\n\n_Note:_\n"
                 "Ketik angka sesuai pilihan\n"

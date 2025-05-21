@@ -48,7 +48,7 @@ class AdminHandler:
             # Return to main menu
             notification.answer(
                 "*Hi, Skremates!* 💸\n\n"
-                "*Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔!* \n\n"
+                "Selamat datang di *Crealert: Your Weekly Task Reminder* 🔔! \n\n"
                 
                 "Apa yang ingin kamu akses?\n\n"
                 
