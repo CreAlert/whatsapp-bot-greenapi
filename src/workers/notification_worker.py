@@ -121,7 +121,7 @@ class NotificationWorker:
                     response = await loop_for_executor.run_in_executor(
                         None,
                         lambda: supabase.table('notifications')
-                            .select('id, phone_number, notification_times, task_id, tasks(id, name, description, due_date, jenis_tugas)')
+                            .select('id, phone_number, notification_time, reminder_type, task_id, tasks(id, name, description, due_date, jenis_tugas)')
                             .eq('is_sent', False)
                             .execute()
                     )
@@ -145,110 +145,104 @@ class NotificationWorker:
                         notification_id = item.get('id')
                         phone_number = item.get('phone_number')
                         task_details = item.get('tasks')
-                        notify_times_list = item.get('notification_times', [])
+                        notify_time_str = item.get('notification_time')
+                        reminder_type = item.get('reminder_type', 'N/A')
 
-                        print(f"### PYPRINT _RUN ### Processing record ID: {notification_id}, phone: {phone_number}")
-                        logger.debug(f"NotificationWorker: Processing record ID: {notification_id}, phone: {phone_number}")
+                        print(f"### PYPRINT _RUN ### Processing record ID: {notification_id}, phone: {phone_number}, type: {reminder_type}")
+                        logger.debug(f"NotificationWorker: Processing record ID: {notification_id}, phone: {phone_number}, type: {reminder_type}")
 
                         if not task_details or not task_details.get('id'):
                             logger.warning(f"NotificationWorker: Notif ID {notification_id} has missing/incomplete task data. Task: {task_details}. Skipping.")
                             continue
                         
-                        if not notify_times_list:
-                            logger.warning(f"NotificationWorker: Notif ID {notification_id} has no notification_times. Skipping.")
+                        if not notify_time_str:
+                            logger.warning(f"NotificationWorker: Notif ID {notification_id} has no notification_time. Skipping.")
                             continue
-                        
-                        processed_this_record_in_cycle = False
-                        for notify_time_str in notify_times_list:
-                            if processed_this_record_in_cycle:
-                                break
 
-                            try:
-                                cleaned_time_str = notify_time_str.strip()
-                                notify_datetime_utc = datetime.fromisoformat(cleaned_time_str.replace('Z', '+00:00'))
-                                logger.debug(f"NotificationWorker: Record ID {notification_id} - Checking notify_time: {cleaned_time_str} (Parsed UTC: {notify_datetime_utc.isoformat()})")
+                        try:
+                            cleaned_time_str = notify_time_str.strip()
+                            notify_datetime_utc = datetime.fromisoformat(cleaned_time_str.replace('Z', '+00:00'))
+                            logger.debug(f"NotificationWorker: Record ID {notification_id} - Checking notification_time: {cleaned_time_str} (Parsed UTC: {notify_datetime_utc.isoformat()})")
 
-                                if current_time_utc >= notify_datetime_utc:
-                                    print(f"### PYPRINT _RUN ### CONDITION MET for Notif ID {notification_id}, Task '{task_details.get('name', 'N/A')}'")
-                                    logger.info(f"NotificationWorker: CONDITION MET for Notif ID {notification_id}, Task '{task_details.get('name', 'N/A')}', Trigger: {cleaned_time_str}")
-                                    
-                                    task_name = task_details.get('name', 'Tugas Tidak Diketahui')
-                                    task_desc = task_details.get('description', 'Tidak ada deskripsi.')
-                                    task_jenis = task_details.get('jenis_tugas', 'N/A').capitalize()
-                                    task_due_iso = task_details.get('due_date')
+                            if current_time_utc >= notify_datetime_utc:
+                                print(f"### PYPRINT _RUN ### CONDITION MET for Notif ID {notification_id}, Task '{task_details.get('name', 'N/A')}', Type: {reminder_type}")
+                                logger.info(f"NotificationWorker: CONDITION MET for Notif ID {notification_id}, Task '{task_details.get('name', 'N/A')}', Type: {reminder_type}")
+                                
+                                task_name = task_details.get('name', 'Tugas Tidak Diketahui')
+                                task_desc = task_details.get('description', 'Tidak ada deskripsi.')
+                                task_jenis = task_details.get('jenis_tugas', 'N/A').capitalize()
+                                task_due_iso = task_details.get('due_date')
 
-                                    if not task_due_iso:
-                                        logger.error(f"NotificationWorker: Task '{task_name}' (ID: {task_details.get('id')}) for Notif ID {notification_id} missing 'due_date'.")
-                                        continue
+                                if not task_due_iso:
+                                    logger.error(f"NotificationWorker: Task '{task_name}' (ID: {task_details.get('id')}) for Notif ID {notification_id} missing 'due_date'.")
+                                    continue
 
-                                    task_due_utc = datetime.fromisoformat(task_due_iso.replace('Z', '+00:00'))
-                                    task_due_wib = task_due_utc.astimezone(INDONESIA_TZ_FOR_WORKER)
-                                    deadline_display_wib = task_due_wib.strftime('%d/%m/%Y %H:%M WIB')
-                                    
-                                    time_from_trigger_to_deadline = task_due_utc - notify_datetime_utc
-                                    message_to_send = ""
-                                    
-                                    if abs(time_from_trigger_to_deadline.total_seconds() - 3*24*3600) < 300:
-                                        message_to_send = (
-                                            "🔔 *Hai, udah H-3 nih! Jangan lupa untuk menyelesaikan tugas ini ya!*\n\n"
-                                            f"📝 *Tugas:* {task_name}\n"
-                                            f"📖 *Deskripsi:* {task_desc}\n"
-                                            f"⏰ *Deadline:* {deadline_display_wib}\n"
-                                            f"📂 *Jenis:* {task_jenis}"
-                                        )
-                                    elif abs(time_from_trigger_to_deadline.total_seconds() - 1*24*3600) < 300:
-                                        message_to_send = (
-                                            "🔔 *Jangan lupa ya, udah 24 jam terakhir!*\n\n"
-                                            f"📝 *Tugas:* {task_name}\n"
-                                            f"📖 *Deskripsi:* {task_desc}\n"
-                                            f"⏰ *Deadline:* {deadline_display_wib}\n"
-                                            f"📂 *Jenis:* {task_jenis}"
-                                        )
-                                    elif abs(time_from_trigger_to_deadline.total_seconds() - 1*3600) < 300:
-                                        message_to_send = (
-                                            "🔔 *Gimana udah diupload? Jangan sampe terlambat!*\n\n"
-                                            f"📝 *Tugas:* {task_name}\n"
-                                            f"📖 *Deskripsi:* {task_desc}\n"
-                                            f"⏰ *Deadline:* {deadline_display_wib}\n"
-                                            f"📂 *Jenis:* {task_jenis}"
-                                        )
-                                    else:
-                                        logger.warning(f"NotificationWorker: Notif ID {notification_id}, Task '{task_name}'. Time diff ({time_from_trigger_to_deadline}) doesn't match H-3D/1D/1H slots. Sending generic reminder.")
-                                        message_to_send = (
-                                            "🔔 *Reminder Tugas!*\n\n"
-                                            f"📝 *Tugas:* {task_name}\n"
-                                            f"⏰ *Deadline:* {deadline_display_wib}\n"
-                                            "Segera selesaikan tugasmu!"
-                                        )
-                                    
-                                    print(f"### PYPRINT _RUN ### Attempting send to {phone_number} for task '{task_name}' with message: '{message_to_send[:30]}...'")
-                                    logger.info(f"NotificationWorker: Attempting send to {phone_number} for task '{task_name}' (Notif ID {notification_id})")
-                                    
-                                    send_response = await loop_for_executor.run_in_executor(
-                                        None,
-                                        lambda: self.bot.api.sending.sendMessage(chatId=phone_number, message=message_to_send)
+                                task_due_utc = datetime.fromisoformat(task_due_iso.replace('Z', '+00:00'))
+                                task_due_wib = task_due_utc.astimezone(INDONESIA_TZ_FOR_WORKER)
+                                deadline_display_wib = task_due_wib.strftime('%d/%m/%Y %H:%M WIB')
+                                
+                                # Pesan berdasarkan reminder_type
+                                if reminder_type == "H-3D":
+                                    message_to_send = (
+                                        "🔔 *Hai, udah H-3 nih! Jangan lupa untuk menyelesaikan tugas ini ya!*\n\n"
+                                        f"📝 *Tugas:* {task_name}\n"
+                                        f"📖 *Deskripsi:* {task_desc}\n"
+                                        f"⏰ *Deadline:* {deadline_display_wib}\n"
+                                        f"📂 *Jenis:* {task_jenis}"
                                     )
-                                    
-                                    logger.info(f"NotificationWorker: sendMessage API call completed. Response: {send_response}")
-                                    # Di sini Anda bisa cek isi send_response jika library mengembalikan status
-                                    
-                                    update_db_response = await loop_for_executor.run_in_executor(
-                                        None,
-                                        lambda: supabase.table('notifications')
-                                            .update({'is_sent': True})
-                                            .eq('id', notification_id)
-                                            .execute()
+                                elif reminder_type == "H-1D":
+                                    message_to_send = (
+                                        "🔔 *Jangan lupa ya, udah 24 jam terakhir!*\n\n"
+                                        f"📝 *Tugas:* {task_name}\n"
+                                        f"📖 *Deskripsi:* {task_desc}\n"
+                                        f"⏰ *Deadline:* {deadline_display_wib}\n"
+                                        f"📂 *Jenis:* {task_jenis}"
                                     )
-                                    if hasattr(update_db_response, 'error') and update_db_response.error:
-                                        logger.error(f"NotificationWorker: Failed to mark Notif ID {notification_id} as sent. Error: {update_db_response.error}")
-                                    else:
-                                        logger.info(f"NotificationWorker: Successfully marked Notif ID {notification_id} as sent.")
-                                    processed_this_record_in_cycle = True
-                            except ValueError as ve_parse:
-                                logger.error(f"NotificationWorker: ValueError parsing time '{notify_time_str}' for Notif ID {notification_id}: {ve_parse}", exc_info=True)
-                            except Exception as e_inner_time_loop:
-                                logger.error(f"NotificationWorker: Error processing time '{notify_time_str}' for Notif ID {notification_id}: {e_inner_time_loop}", exc_info=True)
-                        
+                                elif reminder_type == "H-1H":
+                                    message_to_send = (
+                                        "🔔 *Gimana udah diupload? Jangan sampe terlambat!*\n\n"
+                                        f"📝 *Tugas:* {task_name}\n"
+                                        f"📖 *Deskripsi:* {task_desc}\n"
+                                        f"⏰ *Deadline:* {deadline_display_wib}\n"
+                                        f"📂 *Jenis:* {task_jenis}"
+                                    )
+                                else:
+                                    logger.warning(f"NotificationWorker: Unknown reminder_type '{reminder_type}' for Notif ID {notification_id}. Sending generic reminder.")
+                                    message_to_send = (
+                                        "🔔 *Reminder Tugas!*\n\n"
+                                        f"📝 *Tugas:* {task_name}\n"
+                                        f"⏰ *Deadline:* {deadline_display_wib}\n"
+                                        "Segera selesaikan tugasmu!"
+                                    )
+                                
+                                print(f"### PYPRINT _RUN ### Attempting send to {phone_number} for task '{task_name}' with message: '{message_to_send[:30]}...'")
+                                logger.info(f"NotificationWorker: Attempting send to {phone_number} for task '{task_name}' (Notif ID {notification_id}, Type: {reminder_type})")
+                                
+                                send_response = await loop_for_executor.run_in_executor(
+                                    None,
+                                    lambda: self.bot.api.sending.sendMessage(chatId=phone_number, message=message_to_send)
+                                )
+                                
+                                logger.info(f"NotificationWorker: sendMessage API call completed. Response: {send_response}")
+                                
+                                update_db_response = await loop_for_executor.run_in_executor(
+                                    None,
+                                    lambda: supabase.table('notifications')
+                                        .update({'is_sent': True})
+                                        .eq('id', notification_id)
+                                        .execute()
+                                )
+                                if hasattr(update_db_response, 'error') and update_db_response.error:
+                                    logger.error(f"NotificationWorker: Failed to mark Notif ID {notification_id} as sent. Error: {update_db_response.error}")
+                                else:
+                                    logger.info(f"NotificationWorker: Successfully marked Notif ID {notification_id} as sent.")
+                            else:
+                                logger.debug(f"NotificationWorker: Notif ID {notification_id} time not yet reached. Current: {current_time_utc.isoformat()}, Notify: {notify_datetime_utc.isoformat()}")
+                        except ValueError as ve_parse:
+                            logger.error(f"NotificationWorker: ValueError parsing time '{notify_time_str}' for Notif ID {notification_id}: {ve_parse}", exc_info=True)
+                        except Exception as e_inner:
+                            logger.error(f"NotificationWorker: Error processing notification ID {notification_id}: {e_inner}", exc_info=True)
+                    
                     sleep_duration = 30
                     print(f"### PYPRINT _RUN ### Cycle {cycle_count} finished. Sleeping {sleep_duration}s.")
                     logger.debug(f"NotificationWorker: Cycle {cycle_count} finished. Sleeping for {sleep_duration} seconds.")

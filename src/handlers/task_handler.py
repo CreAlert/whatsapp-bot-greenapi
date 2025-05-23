@@ -196,27 +196,48 @@ class TaskHandler:
                 
                 try:
                     due_date_utc = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
-                    notify_times_utc_iso = calculate_notification_times(due_date_utc) 
+                    notify_times_utc_iso = calculate_notification_times(due_date_utc)
                     
-                    insert_payload = {
-                        "phone_number": notification.sender, "task_id": task['id'],
-                        "notification_times": notify_times_utc_iso, "is_sent": False
-                    }
-                    logger.info(f"Attempting to insert notification: {insert_payload}")
-                    response = supabase.table('notifications').insert(insert_payload).execute()
+                    # Buat records untuk setiap waktu notifikasi
+                    records_to_insert = []
+                    reminder_types = ["H-3D", "H-1D", "H-1H"]  # Sesuaikan dengan urutan di calculate_notification_times
                     
-                    if hasattr(response, 'error') and response.error:
-                        logger.error(f"Supabase error saving notification: {response.error}")
-                        notification.answer(f"❌ *Gagal menyimpan notifikasi ke DB*\nError: {response.error.message if hasattr(response.error, 'message') else response.error}")
-                    elif response.data:
-                        logger.info(f"Reminder successfully set for task ID {task['id']}.")
-                        notification.answer(f"✅ *Reminder berhasil diatur!*\n\nKamu akan menerima reminder untuk tugas:\n📝 {task.get('name', 'N/A')}\n\nReminder akan dikirim:\n- 3 hari sebelum\n- 1 hari sebelum\n- 1 jam sebelum")
-                        self._display_initial_menu(notification)
+                    for time_iso_str, reminder_type in zip(notify_times_utc_iso, reminder_types):
+                        records_to_insert.append({
+                            "phone_number": notification.sender,
+                            "task_id": task['id'],
+                            "notification_time": time_iso_str,
+                            "reminder_type": reminder_type,
+                            "is_sent": False
+                        })
+                    
+                    if records_to_insert:
+                        logger.info(f"Attempting to insert {len(records_to_insert)} notification records")
+                        response = supabase.table('notifications').insert(records_to_insert).execute()
+                        
+                        if hasattr(response, 'error') and response.error:
+                            logger.error(f"Supabase error saving notifications: {response.error}")
+                            notification.answer(f"❌ *Gagal menyimpan notifikasi ke DB*\nError: {response.error.message if hasattr(response.error, 'message') else response.error}")
+                        elif response.data:
+                            logger.info(f"Reminders successfully set for task ID {task['id']}.")
+                            notification.answer(
+                                f"✅ *Reminder berhasil diatur!*\n\n"
+                                f"Kamu akan menerima reminder untuk tugas:\n"
+                                f"📝 {task.get('name', 'N/A')}\n\n"
+                                f"Reminder akan dikirim:\n"
+                                f"- 3 hari sebelum deadline\n"
+                                f"- 1 hari sebelum deadline\n"
+                                f"- 1 jam sebelum deadline"
+                            )
+                            self._display_initial_menu(notification)
+                        else:
+                            logger.warning(f"Failed to save notifications, no data/error in response: {response}")
+                            notification.answer("❌ *Gagal menyimpan notifikasi (unknown DB issue)*\nSilakan coba lagi.")
                     else:
-                        logger.warning(f"Failed to save notification, no data/error in response: {response}")
-                        notification.answer("❌ *Gagal menyimpan notifikasi (unknown DB issue)*\nSilakan coba lagi.")
+                        logger.error("No notification records to insert")
+                        notification.answer("❌ *Gagal mengatur reminder: Tidak ada waktu notifikasi yang valid*")
                 except Exception as e:
-                    logger.error(f"Python exception saving notification: {e}", exc_info=True)
+                    logger.error(f"Python exception saving notifications: {e}", exc_info=True)
                     notification.answer("❌ *Terjadi kesalahan sistem saat mengatur reminder.*")
             elif notification.message_text == "2": # TIDAK
                 self.skip_reminder_handler(notification)
@@ -302,6 +323,19 @@ class TaskHandler:
             if not tasks_data:
                 notification.answer(f"📭 Yeay! Tidak ada tugas untuk kelas yang dipilih pada hari {day_name}.")
                 self.class_selection_handler(type('TempNotif', (), {'sender': notification.sender, 'message_text': selected_class_id_str, 'state_manager': notification.state_manager})())
+
+                if selected_class_id_str: # Pastikan selected_class_id_str ada
+                    # Buat objek notifikasi sementara
+                    # message_text di sini adalah ID kelas yang akan diproses oleh class_selection_handler
+                    temp_notif_for_class_handler = type('TempNotif', (), {
+                        'sender': notification.sender,
+                        'message_text': selected_class_id_str, 
+                        'state_manager': notification.state_manager
+                    })()
+                    self.class_selection_handler(temp_notif_for_class_handler)
+                else:
+                    logger.warning("DAY_SELECTION_HANDLER: selected_class_id_str is missing when trying to go back after no tasks found. Returning to main flow.")
+
                 return
             
             history = state_data.get("state_history", [])
