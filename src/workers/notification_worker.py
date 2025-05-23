@@ -106,6 +106,8 @@ class NotificationWorker:
             logger.info(f"NotificationWorker._run: Timezone objects successfully accessed - UTC: {UTC_TZ_FOR_WORKER}, WIB: {INDONESIA_TZ_FOR_WORKER}")
             logger.info(f"NotificationWorker._run: Supabase client appears accessible (imported successfully).")
             
+            loop = asyncio.get_event_loop()  # Dapatkan event loop saat ini
+
             cycle_count = 0
             while self.running:
                 cycle_count += 1
@@ -114,11 +116,14 @@ class NotificationWorker:
                 logger.info(f"NotificationWorker: Cycle {cycle_count}. Current UTC time for checks: {current_time_utc.isoformat()}")
                 
                 try:
-                    logger.debug("NotificationWorker: Fetching unsent notifications from database...")
-                    response = supabase.table('notifications') \
-                        .select('id, phone_number, notification_times, task_id, tasks(id, name, description, due_date, jenis_tugas)') \
-                        .eq('is_sent', False) \
-                        .execute()
+                    # Jalankan query Supabase di executor
+                    response = await loop.run_in_executor(
+                        None,
+                        lambda: supabase.table('notifications')
+                            .select('id, phone_number, notification_times, task_id, tasks(id, name, description, due_date, jenis_tugas)')
+                            .eq('is_sent', False)
+                            .execute()
+                    )
                     
                     if hasattr(response, 'error') and response.error:
                         logger.error(f"NotificationWorker: Supabase error fetching notifications: {response.error}")
@@ -184,32 +189,62 @@ class NotificationWorker:
                                     
                                     # Toleransi 5 menit (300 detik)
                                     if abs(time_from_trigger_to_deadline.total_seconds() - 3*24*3600) < 300:
-                                        message_to_send = (f"🔔 *Reminder Tugas H-3!*\n\n📝 *Tugas:* {task_name}\n📖 *Deskripsi:* {task_desc}\n⏰ *Deadline:* {deadline_display_wib}\n📂 *Jenis:* {task_jenis}\n\nHai, udah H-3 nih! Jangan lupa untuk menyelesaikan tugas ini ya! 🎯")
+                                        message_to_send = (
+                                            "🔔 *Hai, udah H-3 nih! Jangan lupa untuk menyelesaikan tugas ini ya!*\n\n"
+                                            f"📝 *Tugas:* {task_name}\n"
+                                            f"📖 *Deskripsi:* {task_desc}\n"
+                                            f"⏰ *Deadline:* {deadline_display_wib}\n"
+                                            f"📂 *Jenis:* {task_jenis}"
+                                        )
                                     elif abs(time_from_trigger_to_deadline.total_seconds() - 1*24*3600) < 300:
-                                        message_to_send = (f"🔔 *Reminder Tugas H-1 Hari!*\n\n📝 *Tugas:* {task_name}\n📖 *Deskripsi:* {task_desc}\n⏰ *Deadline:* {deadline_display_wib}\n📂 *Jenis:* {task_jenis}\n\nJgn lupa ya, H-1 Hari terakhir! 🚨")
+                                        message_to_send = (
+                                            "🔔 *Jangan lupa ya, udah 24 jam terakhir!*\n\n"
+                                            f"📝 *Tugas:* {task_name}\n"
+                                            f"📖 *Deskripsi:* {task_desc}\n"
+                                            f"⏰ *Deadline:* {deadline_display_wib}\n"
+                                            f"📂 *Jenis:* {task_jenis}"
+                                        )
                                     elif abs(time_from_trigger_to_deadline.total_seconds() - 1*3600) < 300:
-                                        message_to_send = (f"🔔 *Reminder Tugas H-1 Jam!*\n\n📝 *Tugas:* {task_name}\n📖 *Deskripsi:* {task_desc}\n⏰ *Deadline:* {deadline_display_wib}\n📂 *Jenis:* {task_jenis}\n\nGimana udah diupload? Jgn sampe terlambat! ⚡")
+                                        message_to_send = (
+                                            "🔔 *Gimana udah diupload? Jangan sampe terlambat!*\n\n"
+                                            f"📝 *Tugas:* {task_name}\n"
+                                            f"📖 *Deskripsi:* {task_desc}\n"
+                                            f"⏰ *Deadline:* {deadline_display_wib}\n"
+                                            f"📂 *Jenis:* {task_jenis}"
+                                        )
                                     else:
                                         logger.warning(f"NotificationWorker: Notif ID {notification_id}, Task '{task_name}'. Time diff ({time_from_trigger_to_deadline}) doesn't match H-3D/1D/1H slots. Sending generic reminder.")
-                                        message_to_send = (f"🔔 *Reminder Tugas!*\n\n📝 *Tugas:* {task_name}\n⏰ *Deadline:* {deadline_display_wib}\nSegera selesaikan tugasmu!")
+                                        message_to_send = (
+                                            "🔔 *Reminder Tugas!*\n\n"
+                                            f"📝 *Tugas:* {task_name}\n"
+                                            f"⏰ *Deadline:* {deadline_display_wib}\n"
+                                            "Segera selesaikan tugasmu!"
+                                        )
                                     
                                     print(f"### PYPRINT _RUN ### Attempting send to {phone_number} for task '{task_name}' with message: '{message_to_send[:30]}...'") # Cetak sebagian pesan
                                     logger.info(f"NotificationWorker: Attempting send to {phone_number} for task '{task_name}' (Notif ID {notification_id})")
                                     
-                                    # ===========================================================
-                                    # PERBAIKAN KRUSIAL DI SINI:
-                                    # Menggunakan self.bot.api.sending.sendMessage
-                                    # ===========================================================
-                                    send_response = await self.bot.api.sending.sendMessage(chatId=phone_number, message=message_to_send)
+                                    # Jalankan sendMessage di executor
+                                    send_response = await loop.run_in_executor(
+                                        None,
+                                        lambda: self.bot.api.sending.sendMessage(chatId=phone_number, message=message_to_send)
+                                    )
                                     # ===========================================================
 
                                     # Tambahkan pengecekan respons dari sendMessage jika perlu (tergantung library)
-                                    logger.info(f"NotificationWorker: sendMessage API call response: {send_response}") # Log respons API
+                                    logger.info(f"NotificationWorker: sendMessage API call SYNCHRONOUSLY completed. Response: {send_response}") # Log respons API
                                     logger.info(f"NotificationWorker: Message presumably sent for Notif ID {notification_id}.") # Anggap berhasil jika tidak ada error
                                     
-                                    update_resp = supabase.table('notifications').update({'is_sent': True}).eq('id', notification_id).execute()
-                                    if hasattr(update_resp, 'error') and update_resp.error:
-                                         logger.error(f"NotificationWorker: Failed to mark Notif ID {notification_id} as sent. Error: {update_resp.error}")
+                                    # Update status di Supabase (juga di executor)
+                                    update_db_response = await loop.run_in_executor(
+                                        None,
+                                        lambda: supabase.table('notifications')
+                                            .update({'is_sent': True})
+                                            .eq('id', notification_id)
+                                            .execute()
+                                    )
+                                    if hasattr(update_db_response, 'error') and update_db_response.error:
+                                         logger.error(f"NotificationWorker: Failed to mark Notif ID {notification_id} as sent. Error: {update_db_response.error}")
                                     else:
                                         logger.info(f"NotificationWorker: Successfully marked Notif ID {notification_id} as sent.")
                                     processed_this_record_in_cycle = True
