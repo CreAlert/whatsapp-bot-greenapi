@@ -1,54 +1,76 @@
 import asyncio
 from datetime import datetime
 import logging
-from typing import List, Dict
+from typing import List, Dict # Anda memiliki ini, jadi saya biarkan
+# Pastikan path impor ini benar sesuai struktur folder Anda:
+# Jika config.py ada di src/, dan file ini di src/workers/, maka ..config sudah benar
 from ..config import supabase
-from whatsapp_chatbot_python import GreenAPIBot
+# GreenAPIBot mungkin tidak perlu diimpor di sini jika hanya untuk type hint di __init__
+# from whatsapp_chatbot_python import GreenAPIBot
 
-# Definisikan timezone object di level modul agar pasti tersedia
+
+# Setup logger untuk modul ini
+logger = logging.getLogger(__name__)
+logger.info("NotificationWorker module: Logger configured.")
+
+# Definisikan timezone object di level modul agar pasti tersedia dan di-log saat impor
 try:
     from zoneinfo import ZoneInfo
     UTC_TZ_FOR_WORKER = ZoneInfo("UTC")
     INDONESIA_TZ_FOR_WORKER = ZoneInfo("Asia/Jakarta")
+    logger.info("NotificationWorker module: Successfully imported timezone using zoneinfo.")
 except ImportError:
     import pytz
     UTC_TZ_FOR_WORKER = pytz.utc
     INDONESIA_TZ_FOR_WORKER = pytz.timezone("Asia/Jakarta")
+    logger.info("NotificationWorker module: Successfully imported timezone using pytz.")
 
-logger = logging.getLogger(__name__)
+# Cek impor supabase
+logger.info("NotificationWorker module: Supabase client imported/configured check: supabase is not None -> %s", supabase is not None)
 
 class NotificationWorker:
-    def __init__(self, bot):
+    def __init__(self, bot): # Anda bisa menambahkan type hint: bot: GreenAPIBot
         self.bot = bot
         self.running = False
         self.task = None
-        logger.info("NotificationWorker initialized")
+        logger.info("NotificationWorker class: Instance initialized.")
 
     async def start(self):
         """Start the notification worker"""
         if self.running:
             logger.info("NotificationWorker.start: Worker already running.")
-            return
+            return self.task # Kembalikan task yang sudah ada jika sudah berjalan
         
         self.running = True
-        logger.info("NotificationWorker.start: Worker starting and creating task for _run.")
-        self.task = asyncio.create_task(self._run())
+        logger.info("NotificationWorker.start: Worker flag set to running. Attempting to create _run task.")
+        try:
+            self.task = asyncio.create_task(self._run())
+            logger.info("NotificationWorker.start: asyncio.create_task(self._run()) called successfully. Task created.")
+        except Exception as e_create_task:
+            logger.error(f"NotificationWorker.start: FAILED to create_task for _run: {e_create_task}", exc_info=True)
+            self.running = False # Reset flag jika gagal membuat task
+            self.task = None
         return self.task
 
     async def stop(self):
         """Stop the notification worker"""
         logger.info("NotificationWorker.stop: Attempting to stop worker.")
-        self.running = False
-        if self.task:
+        self.running = False # Set flag untuk menghentikan loop di _run
+        if self.task and not self.task.done(): # Periksa apakah task ada dan belum selesai
             logger.info("NotificationWorker.stop: Cancelling worker task.")
             self.task.cancel()
             try:
                 await self.task
+                logger.info("NotificationWorker.stop: Worker task awaited after cancellation.")
             except asyncio.CancelledError:
-                logger.info("NotificationWorker.stop: Worker task successfully cancelled.")
+                logger.info("NotificationWorker.stop: Worker task successfully cancelled and caught CancelledError.")
             except Exception as e:
                 logger.error(f"NotificationWorker.stop: Error encountered while awaiting cancelled task: {e}", exc_info=True)
-            self.task = None
+        elif self.task and self.task.done():
+            logger.info("NotificationWorker.stop: Worker task was already done.")
+        else:
+            logger.info("NotificationWorker.stop: No active task to cancel.")
+        self.task = None
         logger.info("NotificationWorker.stop: Worker stopped.")
 
     async def _run(self):
@@ -57,120 +79,149 @@ class NotificationWorker:
         logger.info("NotificationWorker._run: Method entered. self.running is %s", self.running)
         
         try:
-            # Pastikan timezone object sudah terdefinisi dan bisa diakses
+            # Log akses ke objek global/modul
             logger.info(f"NotificationWorker._run: Timezone objects successfully accessed - UTC: {UTC_TZ_FOR_WORKER}, WIB: {INDONESIA_TZ_FOR_WORKER}")
-            
-            # Pastikan supabase client bisa diakses
             logger.info(f"NotificationWorker._run: Supabase client accessible: {supabase is not None}")
             
             while self.running:
                 current_time_utc = datetime.now(UTC_TZ_FOR_WORKER)
-                logger.info(f"NotificationWorker: New cycle starting. Current UTC time: {current_time_utc.isoformat()}")
+                logger.info(f"NotificationWorker: New cycle starting. Current UTC time for checks: {current_time_utc.isoformat()}")
                 
                 try:
-                    # Get all unsent notifications
                     logger.debug("NotificationWorker: Fetching unsent notifications from database...")
                     response = supabase.table('notifications') \
-                        .select('*, tasks(*)') \
+                        .select('id, phone_number, notification_times, task_id, tasks(id, name, description, due_date, jenis_tugas)') \
                         .eq('is_sent', False) \
                         .execute()
                     
-                    notifications = response.data
-                    logger.info(f"NotificationWorker: Found {len(notifications)} unsent notifications")
+                    if hasattr(response, 'error') and response.error:
+                        logger.error(f"NotificationWorker: Supabase error fetching notifications: {response.error}")
+                        await asyncio.sleep(60) # Tunggu sebelum mencoba lagi jika ada error DB
+                        continue 
                     
-                    for notification in notifications:
-                        try:
-                            # Get notification times
-                            notify_times = notification.get('notification_times', [])
-                            if not notify_times:
-                                logger.warning(f"NotificationWorker: Notification {notification.get('id')} has no notification times")
-                                continue
-                            
-                            # Get task data
-                            task = notification.get('tasks', {})
-                            if not task:
-                                logger.warning(f"NotificationWorker: Notification {notification.get('id')} has no associated task")
-                                continue
-                            
-                            logger.debug(f"NotificationWorker: Processing notification {notification.get('id')} for task {task.get('name')}")
-                            
-                            # Check each notification time
-                            for notify_time in notify_times:
-                                notify_datetime_utc = datetime.fromisoformat(notify_time.replace('Z', '+00:00'))
-                                
-                                # If it's time to send notification
-                                if current_time_utc >= notify_datetime_utc:
-                                    logger.info(f"NotificationWorker: Sending notification for task {task.get('name')} at {current_time_utc.isoformat()}")
-                                    
-                                    # Get task deadline in WIB for display
-                                    task_due_date_utc = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
-                                    task_due_date_wib = task_due_date_utc.astimezone(INDONESIA_TZ_FOR_WORKER)
-                                    deadline_display = task_due_date_wib.strftime('%d/%m/%Y %H:%M WIB')
-                                    
-                                    # Calculate time difference in UTC
-                                    time_diff = task_due_date_utc - notify_datetime_utc
-                                    days_diff = time_diff.days
-                                    hours_diff = time_diff.seconds // 3600
+                    notifications_data = response.data
+                    if notifications_data is None:
+                        logger.warning("NotificationWorker: Fetched notifications data is None. Assuming empty list. Response: %s", response)
+                        notifications_data = []
 
-                                    # Create different messages based on time difference
-                                    if days_diff == 3:
-                                        message = (
-                                            "🔔 *Reminder Tugas!*\n\n"
-                                            f"📝 *Tugas:* {task['name']}\n"
-                                            f"📖 *Deskripsi:* {task['description']}\n"
-                                            f"⏰ *Deadline:* {deadline_display}\n"
-                                            f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
+                    logger.info(f"NotificationWorker: Found {len(notifications_data)} unsent notification records.")
+                    
+                    if not notifications_data:
+                        logger.info("NotificationWorker: No pending notifications to process in this cycle.")
+
+                    for item in notifications_data:
+                        notification_id = item.get('id')
+                        phone_number = item.get('phone_number')
+                        task_details = item.get('tasks') # Ini adalah objek task, bukan list
+                        notify_times_list = item.get('notification_times', [])
+
+                        logger.debug(f"NotificationWorker: Processing record ID: {notification_id}, phone: {phone_number}")
+
+                        if not task_details or not task_details.get('id'):
+                            logger.warning(f"NotificationWorker: Notification ID {notification_id} has missing or incomplete associated task data. Task data: {task_details}. Skipping.")
+                            continue
+                        
+                        if not notify_times_list:
+                            logger.warning(f"NotificationWorker: Notification ID {notification_id} has no notification_times. Skipping.")
+                            continue
+                        
+                        processed_this_record_in_cycle = False
+                        for notify_time_str in notify_times_list:
+                            if processed_this_record_in_cycle:
+                                break # Hanya satu notif per record per siklus worker
+
+                            try:
+                                cleaned_time_str = notify_time_str.strip()
+                                notify_datetime_utc = datetime.fromisoformat(cleaned_time_str.replace('Z', '+00:00'))
+                                logger.debug(f"NotificationWorker: Record ID {notification_id} - Checking notify_time: {cleaned_time_str} (Parsed as UTC: {notify_datetime_utc.isoformat()})")
+
+                                if current_time_utc >= notify_datetime_utc:
+                                    logger.info(f"NotificationWorker: CONDITION MET for Notification ID {notification_id}, Task '{task_details.get('name', 'N/A')}', Trigger Time: {cleaned_time_str}")
+                                    
+                                    task_name = task_details.get('name', 'Tugas Tidak Diketahui')
+                                    task_desc = task_details.get('description', 'Tidak ada deskripsi.')
+                                    task_jenis = task_details.get('jenis_tugas', 'N/A').capitalize()
+                                    task_due_iso = task_details.get('due_date')
+
+                                    if not task_due_iso:
+                                        logger.error(f"NotificationWorker: Task '{task_name}' (ID: {task_details.get('id')}) for Notif ID {notification_id} is missing 'due_date'. Cannot format message.")
+                                        continue
+
+                                    task_due_utc = datetime.fromisoformat(task_due_iso.replace('Z', '+00:00'))
+                                    task_due_wib = task_due_utc.astimezone(INDONESIA_TZ_FOR_WORKER)
+                                    deadline_display_wib = task_due_wib.strftime('%d/%m/%Y %H:%M WIB')
+
+                                    # Tentukan jenis pesan berdasarkan seberapa jauh waktu notifikasi (notify_datetime_utc) dari deadline tugas (task_due_utc)
+                                    time_from_trigger_to_deadline = task_due_utc - notify_datetime_utc
+                                    message_to_send = ""
+                                    
+                                    # Toleransi 5 menit (300 detik) untuk perbandingan waktu
+                                    if abs(time_from_trigger_to_deadline.total_seconds() - 3*24*3600) < 300: # Sekitar 3 hari
+                                        message_to_send = (
+                                            f"🔔 *Reminder Tugas H-3!*\n\n"
+                                            f"📝 *Tugas:* {task_name}\n📖 *Deskripsi:* {task_desc}\n"
+                                            f"⏰ *Deadline:* {deadline_display_wib}\n📂 *Jenis:* {task_jenis}\n\n"
                                             "Hai, udah H-3 nih! Jangan lupa untuk menyelesaikan tugas ini ya! 🎯"
                                         )
-                                    elif days_diff == 1:
-                                        message = (
-                                            "🔔 *Reminder Tugas!*\n\n"
-                                            f"📝 *Tugas:* {task['name']}\n"
-                                            f"📖 *Deskripsi:* {task['description']}\n"
-                                            f"⏰ *Deadline:* {deadline_display}\n"
-                                            f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
-                                            "Jgn lupa ya, udah 24 jam terakhir! 🚨"
+                                    elif abs(time_from_trigger_to_deadline.total_seconds() - 1*24*3600) < 300: # Sekitar 1 hari
+                                        message_to_send = (
+                                            f"🔔 *Reminder Tugas H-1 Hari!*\n\n"
+                                            f"📝 *Tugas:* {task_name}\n📖 *Deskripsi:* {task_desc}\n"
+                                            f"⏰ *Deadline:* {deadline_display_wib}\n📂 *Jenis:* {task_jenis}\n\n"
+                                            "Jgn lupa ya, H-1 Hari terakhir! 🚨"
                                         )
-                                    elif hours_diff == 1:
-                                        message = (
-                                            "🔔 *Reminder Tugas!*\n\n"
-                                            f"📝 *Tugas:* {task['name']}\n"
-                                            f"📖 *Deskripsi:* {task['description']}\n"
-                                            f"⏰ *Deadline:* {deadline_display}\n"
-                                            f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
+                                    elif abs(time_from_trigger_to_deadline.total_seconds() - 1*3600) < 300: # Sekitar 1 jam
+                                        message_to_send = (
+                                            f"🔔 *Reminder Tugas H-1 Jam!*\n\n"
+                                            f"📝 *Tugas:* {task_name}\n📖 *Deskripsi:* {task_desc}\n"
+                                            f"⏰ *Deadline:* {deadline_display_wib}\n📂 *Jenis:* {task_jenis}\n\n"
                                             "Gimana udah diupload? Jgn sampe terlambat! ⚡"
                                         )
+                                    else:
+                                        logger.warning(f"NotificationWorker: Notif ID {notification_id}, Task '{task_name}'. Time diff from deadline ({time_from_trigger_to_deadline}) doesn't match H-3D/1D/1H slots. Sending generic reminder.")
+                                        message_to_send = (
+                                            f"🔔 *Reminder Tugas!*\n\n"
+                                            f"📝 *Tugas:* {task_name}\n⏰ *Deadline:* {deadline_display_wib}\n"
+                                            "Segera selesaikan tugasmu!"
+                                        )
                                     
-                                    await self.bot.send_message(
-                                        notification['phone_number'],
-                                        message
-                                    )
+                                    logger.info(f"NotificationWorker: Attempting to send to {phone_number} for task '{task_name}' (Notif ID {notification_id})")
+                                    await self.bot.send_message(phone_number, message_to_send)
+                                    logger.info(f"NotificationWorker: Message sent successfully for Notif ID {notification_id}.")
                                     
-                                    # Mark notification as sent
-                                    logger.info(f"NotificationWorker: Marking notification {notification.get('id')} as sent")
-                                    supabase.table('notifications') \
+                                    update_resp = supabase.table('notifications') \
                                         .update({'is_sent': True}) \
-                                        .eq('id', notification['id']) \
+                                        .eq('id', notification_id) \
                                         .execute()
-                        
-                        except Exception as e:
-                            logger.error(f"NotificationWorker: Error processing notification {notification.get('id')}: {e}", exc_info=True)
-                            continue
-                    
-                    # Sleep for 60 seconds before next check
-                    logger.debug("NotificationWorker: Sleeping for 60 seconds before next cycle")
-                    await asyncio.sleep(60)
-                    
-                except Exception as e_inner_loop:
-                    # Tangkap error spesifik dari logika pemrosesan notifikasi
-                    logger.error(f"NotificationWorker: Error during notification processing in while loop: {e_inner_loop}", exc_info=True)
-                    # Sleep for 60 seconds on error
-                    await asyncio.sleep(60)
+                                    if hasattr(update_resp, 'error') and update_resp.error:
+                                         logger.error(f"NotificationWorker: Failed to mark Notif ID {notification_id} as sent. Error: {update_resp.error}")
+                                    else:
+                                        logger.info(f"NotificationWorker: Successfully marked Notif ID {notification_id} as sent.")
+                                    processed_this_record_in_cycle = True 
+                                    # break # Hapus break ini jika ingin semua `notify_time` yang cocok dalam satu record ditandai.
+                                            # Dengan `processed_this_record_in_cycle`, hanya satu pesan yang dikirim, lalu record ditandai `is_sent`.
+                                            # Ini perilaku yang benar: satu picu, kirim, tandai.
 
+                            except ValueError as ve_parse:
+                                logger.error(f"NotificationWorker: ValueError parsing time '{notify_time_str}' for Notif ID {notification_id}: {ve_parse}", exc_info=True)
+                            except Exception as e_inner_time_loop:
+                                logger.error(f"NotificationWorker: Error processing time '{notify_time_str}' for Notif ID {notification_id}: {e_inner_time_loop}", exc_info=True)
+                        
+                        # Akhir loop untuk setiap notify_time_str dalam satu record notifikasi
+                    # Akhir loop untuk setiap item notifikasi
+
+                    # Sleep sebelum siklus berikutnya
+                    sleep_duration = 60 # Detik
+                    logger.debug(f"NotificationWorker: Cycle finished. Sleeping for {sleep_duration} seconds.")
+                    await asyncio.sleep(sleep_duration)
+                    
+                except Exception as e_main_loop_try:
+                    logger.error(f"NotificationWorker: Error in main try block of worker cycle: {e_main_loop_try}", exc_info=True)
+                    await asyncio.sleep(60) # Tunggu lebih lama jika ada error di siklus utama
+
+        except ImportError as e_imp: # Menangkap error impor yang mungkin terjadi saat _run benar-benar dieksekusi
+            logger.critical(f"NotificationWorker._run: CRITICAL IMPORT ERROR in _run task: {e_imp}", exc_info=True)
         except Exception as e_very_outer:
-            # Tangkap error apapun yang mungkin terjadi di luar loop utama _run
             logger.critical(f"NotificationWorker._run: CRITICAL UNHANDLED EXCEPTION in _run task: {e_very_outer}", exc_info=True)
         finally:
-            # Log ini akan muncul jika loop `while self.running` selesai
-            # atau jika ada exception yang menyebabkan keluar dari blok try utama di _run
-            logger.info("NotificationWorker._run: Method exiting. self.running is %s", self.running) 
+            logger.info("NotificationWorker._run: Method exiting. self.running is %s", self.running)
