@@ -447,6 +447,13 @@ class AdminHandler:
                         f"📂 Jenis: {state_data['task_type'].capitalize()}\n"
                         f"⏰ Deadline: {due_date.strftime('%d %B %Y %H:%M')}"
                     )
+
+                    # Clear the task-specific state data after successful insertion
+                    notification.state_manager.update_state_data(
+                        notification.sender,
+                        {"state_history": state_data.get("state_history", [])} # Preserve history
+                    )
+
                 else:
                     notification.answer("❌ Gagal menyimpan tugas ke database")
             except Exception as e:
