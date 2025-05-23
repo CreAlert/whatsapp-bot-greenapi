@@ -426,7 +426,9 @@ class AdminHandler:
                 response = supabase.table("tasks").insert(task_data).execute()
                 
                 if response.data:
-                    # Get class and day names for confirmation message
+                    # Get class and day names for confirmation message using the state_data captured earlier
+                    # Make sure to use the state_data that contains the task details for the confirmation message
+                    # state_data captured at the beginning of this handler has all the details
                     class_response = supabase.table("classes") \
                         .select("name") \
                         .eq("id", state_data["selected_class_id"]) \
@@ -448,10 +450,12 @@ class AdminHandler:
                         f"⏰ Deadline: {due_date.strftime('%d %B %Y %H:%M')}"
                     )
 
-                    # Clear the task-specific state data after successful insertion
+                    # Clear the task-specific state data after successful insertion, preserve history
+                    current_state_data_after_save = notification.state_manager.get_state_data(notification.sender) or {}
+                    history_after_save = current_state_data_after_save.get("state_history", [])
                     notification.state_manager.update_state_data(
                         notification.sender,
-                        {"state_history": state_data.get("state_history", [])} # Preserve history
+                        {"state_history": history_after_save}
                     )
 
                 else:
@@ -473,8 +477,13 @@ class AdminHandler:
 
     def start_add_task_flow(self, notification):
         """Start the task addition flow"""
-        # Clear any existing state data for this sender
-        notification.state_manager.update_state_data(notification.sender, {})
+        # Get current state data to preserve history if it exists
+        current_state_data = notification.state_manager.get_state_data(notification.sender) or {}
+        history = current_state_data.get("state_history", [])
+
+        # Clear all state data, then restore history
+        notification.state_manager.update_state_data(notification.sender, {"state_history": history})
+
         response = supabase.table('classes').select('id, name').order('id').execute()
         classes = {str(item['id']): item['name'] for item in response.data}
         class_list = "\n".join([f"{num}. {name}" for num, name in classes.items()])
