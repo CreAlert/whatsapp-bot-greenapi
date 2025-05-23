@@ -45,7 +45,7 @@ class NotificationWorker:
         if self.running:
             print("### PYPRINT ### NotificationWorker.start: Worker already running.")
             logger.info("NotificationWorker.start: Worker already running.")
-            return self.task
+            return self.task 
         
         self.running = True
         print("### PYPRINT ### NotificationWorker.start: self.running set to True. Attempting to create _run task.")
@@ -100,8 +100,8 @@ class NotificationWorker:
         try:
             if not SUPABASE_CLIENT_AVAILABLE:
                 logger.critical("NotificationWorker._run: Supabase client is NOT AVAILABLE. Worker cannot function. Exiting _run.")
-                self.running = False # Hentikan worker jika supabase tidak ada
-                return # Keluar dari _run
+                self.running = False 
+                return 
 
             logger.info(f"NotificationWorker._run: Timezone objects successfully accessed - UTC: {UTC_TZ_FOR_WORKER}, WIB: {INDONESIA_TZ_FOR_WORKER}")
             logger.info(f"NotificationWorker._run: Supabase client appears accessible (imported successfully).")
@@ -137,7 +137,7 @@ class NotificationWorker:
 
                     for item in notifications_data:
                         notification_id = item.get('id')
-                        phone_number = item.get('phone_number')
+                        phone_number = item.get('phone_number') # Ini akan menjadi chatId
                         task_details = item.get('tasks') 
                         notify_times_list = item.get('notification_times', [])
 
@@ -190,34 +190,42 @@ class NotificationWorker:
                                     elif abs(time_from_trigger_to_deadline.total_seconds() - 1*3600) < 300:
                                         message_to_send = (f"🔔 *Reminder Tugas H-1 Jam!*\n\n📝 *Tugas:* {task_name}\n📖 *Deskripsi:* {task_desc}\n⏰ *Deadline:* {deadline_display_wib}\n📂 *Jenis:* {task_jenis}\n\nGimana udah diupload? Jgn sampe terlambat! ⚡")
                                     else:
-                                        logger.warning(f"NotificationWorker: Notif ID {notification_id}, Task '{task_name}'. Time diff ({time_from_trigger_to_deadline}) doesn't match slots. Generic reminder.")
+                                        logger.warning(f"NotificationWorker: Notif ID {notification_id}, Task '{task_name}'. Time diff ({time_from_trigger_to_deadline}) doesn't match H-3D/1D/1H slots. Sending generic reminder.")
                                         message_to_send = (f"🔔 *Reminder Tugas!*\n\n📝 *Tugas:* {task_name}\n⏰ *Deadline:* {deadline_display_wib}\nSegera selesaikan tugasmu!")
                                     
-                                    print(f"### PYPRINT _RUN ### Attempting send to {phone_number} for task '{task_name}'")
+                                    print(f"### PYPRINT _RUN ### Attempting send to {phone_number} for task '{task_name}' with message: '{message_to_send[:30]}...'") # Cetak sebagian pesan
                                     logger.info(f"NotificationWorker: Attempting send to {phone_number} for task '{task_name}' (Notif ID {notification_id})")
-                                    await self.bot.send_message(phone_number, message_to_send)
-                                    logger.info(f"NotificationWorker: Message sent for Notif ID {notification_id}.")
+                                    
+                                    # ===========================================================
+                                    # PERBAIKAN KRUSIAL DI SINI:
+                                    # Menggunakan self.bot.api.sending.sendMessage
+                                    # ===========================================================
+                                    send_response = await self.bot.api.sending.sendMessage(chatId=phone_number, message=message_to_send)
+                                    # ===========================================================
+
+                                    # Tambahkan pengecekan respons dari sendMessage jika perlu (tergantung library)
+                                    logger.info(f"NotificationWorker: sendMessage API call response: {send_response}") # Log respons API
+                                    logger.info(f"NotificationWorker: Message presumably sent for Notif ID {notification_id}.") # Anggap berhasil jika tidak ada error
                                     
                                     update_resp = supabase.table('notifications').update({'is_sent': True}).eq('id', notification_id).execute()
                                     if hasattr(update_resp, 'error') and update_resp.error:
                                          logger.error(f"NotificationWorker: Failed to mark Notif ID {notification_id} as sent. Error: {update_resp.error}")
                                     else:
-                                        logger.info(f"NotificationWorker: Marked Notif ID {notification_id} as sent.")
+                                        logger.info(f"NotificationWorker: Successfully marked Notif ID {notification_id} as sent.")
                                     processed_this_record_in_cycle = True
                             except ValueError as ve_parse:
                                 logger.error(f"NotificationWorker: ValueError parsing time '{notify_time_str}' for Notif ID {notification_id}: {ve_parse}", exc_info=True)
                             except Exception as e_inner_time_loop:
                                 logger.error(f"NotificationWorker: Error processing time '{notify_time_str}' for Notif ID {notification_id}: {e_inner_time_loop}", exc_info=True)
-                    # Akhir loop untuk setiap item notifikasi
-
-                    sleep_duration = 30 # Detik untuk debugging, naikkan ke 60 nanti
+                        
+                    sleep_duration = 30 # Detik untuk debugging, naikkan ke 60-120 nanti untuk produksi
                     print(f"### PYPRINT _RUN ### Cycle {cycle_count} finished. Sleeping {sleep_duration}s.")
                     logger.debug(f"NotificationWorker: Cycle {cycle_count} finished. Sleeping for {sleep_duration} seconds.")
                     await asyncio.sleep(sleep_duration)
                     
                 except Exception as e_main_loop_try:
                     logger.error(f"NotificationWorker: Error in main try block of worker cycle {cycle_count}: {e_main_loop_try}", exc_info=True)
-                    await asyncio.sleep(60) 
+                    await asyncio.sleep(60) # Tunggu lebih lama jika ada error di siklus utama
 
         except ImportError as e_imp: 
             print(f"### PYPRINT _RUN ERROR ### CRITICAL IMPORT ERROR in _run task: {e_imp}")
