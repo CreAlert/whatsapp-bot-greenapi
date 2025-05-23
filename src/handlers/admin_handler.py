@@ -316,6 +316,27 @@ class AdminHandler:
 
         @self.bot.router.message(
             type_message="textMessage",
+            state=States.ADMIN_TASK_DEADLINE,
+            regexp=r"^\s*[uU]lang hari\s*$" # Case-insensitive match for "ulang hari" with optional surrounding whitespace
+        )
+        def admin_task_deadline_ulang_hari_handler(notification):
+            """Handle 'ulang hari' input in ADMIN_TASK_DEADLINE state"""
+            # Get days from database
+            days_response = supabase.table('days').select('id, name').order('id').execute()
+            days = {str(item['id']): item['name'] for item in days_response.data}
+            day_list = "\n".join([f"{num}. {name}" for num, name in days.items()])
+
+            notification.answer(
+                "*🗓️ Pilih Hari Pengumpulan Kembali:*\n\n" +
+                day_list +
+                "\n\n_Note:_\n"
+                "Ketik angka sesuai pilihan\n"
+                "Ketik 0 untuk kembali ke Home"
+            )
+            update_state_with_history(notification, States.ADMIN_DAY_SELECTION)
+
+        @self.bot.router.message(
+            type_message="textMessage",
             state=States.ADMIN_TASK_DEADLINE
         )
         def admin_task_deadline_handler(notification):
@@ -334,6 +355,34 @@ class AdminHandler:
                 due_date = datetime.strptime(notification.message_text, "%d-%m-%Y %H:%M")
                 if due_date < datetime.now():
                     raise ValueError("Deadline tidak boleh di masa lalu")
+
+                # Get the selected day ID from state
+                state_data = notification.state_manager.get_state_data(notification.sender)
+                selected_day_id = int(state_data.get("selected_day_id"))
+
+                # Get the day of the week from the entered deadline (Monday=0, Sunday=6)
+                deadline_weekday = due_date.weekday() + 1 # Convert to 1-indexed (Monday=1, Sunday=7)
+
+                # Check if the deadline weekday matches the selected day ID
+                if deadline_weekday != selected_day_id:
+                    # Get day name for the selected day ID
+                    day_response = supabase.table("days") \
+                        .select("name") \
+                        .eq("id", selected_day_id) \
+                        .execute()
+                    selected_day_name = day_response.data[0]["name"] if day_response.data else f"Hari {selected_day_id}"
+
+                    notification.answer(
+                        f"⚠️ *Input tidak valid!*\n\n"
+                        f"Tanggal deadline yang kamu masukkan tidak jatuh pada hari {selected_day_name}.\n\n"
+                        "Silakan:\n"
+                        "1. Masukkan kembali deadline yang sesuai.\n"
+                        "2. Ketik 'ulang hari' untuk memilih hari pengumpulan yang berbeda.\n"
+                        "Ketik 0 untuk kembali ke Home"
+                    )
+                    # Stay in the ADMIN_TASK_DEADLINE state to allow re-input or 'ulang hari'
+                    return # Stop processing here, do not save task or change state
+
             except ValueError as e:
                 notification.answer(
                     "⚠️ *Input tidak valid!*\n\n"
@@ -417,6 +466,8 @@ class AdminHandler:
 
     def start_add_task_flow(self, notification):
         """Start the task addition flow"""
+        # Clear any existing state data for this sender
+        notification.state_manager.update_state_data(notification.sender, {})
         response = supabase.table('classes').select('id, name').order('id').execute()
         classes = {str(item['id']): item['name'] for item in response.data}
         class_list = "\n".join([f"{num}. {name}" for num, name in classes.items()])
