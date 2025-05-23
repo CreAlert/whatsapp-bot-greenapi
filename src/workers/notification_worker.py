@@ -5,6 +5,15 @@ from typing import List, Dict
 from ..config import supabase
 from whatsapp_chatbot_python import GreenAPIBot
 
+try:
+    from zoneinfo import ZoneInfo
+    utc_tz = ZoneInfo("UTC")
+    indonesia_tz = ZoneInfo("Asia/Jakarta")
+except ImportError:
+    import pytz
+    utc_tz = pytz.utc
+    indonesia_tz = pytz.timezone("Asia/Jakarta")
+
 logger = logging.getLogger(__name__)
 
 class NotificationWorker:
@@ -57,15 +66,22 @@ class NotificationWorker:
                         if not task:
                             continue
                         
+                        # Get current time in UTC
+                        current_time_utc = datetime.now(utc_tz)
+                        
+                        # Get task deadline in WIB for display
+                        task_due_date_utc = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
+                        task_due_date_wib = task_due_date_utc.astimezone(indonesia_tz)
+                        deadline_display = task_due_date_wib.strftime('%d/%m/%Y %H:%M WIB')
+                        
                         # Check each notification time
-                        current_time = datetime.now()
                         for notify_time in notify_times:
-                            notify_datetime = datetime.fromisoformat(notify_time.replace('Z', '+00:00'))
+                            notify_datetime_utc = datetime.fromisoformat(notify_time.replace('Z', '+00:00'))
                             
                             # If it's time to send notification
-                            if current_time >= notify_datetime:
-                                # Calculate time difference
-                                time_diff = notify_datetime - current_time
+                            if current_time_utc >= notify_datetime_utc:
+                                # Calculate time difference in UTC
+                                time_diff = task_due_date_utc - notify_datetime_utc
                                 days_diff = time_diff.days
                                 hours_diff = time_diff.seconds // 3600
 
@@ -75,7 +91,7 @@ class NotificationWorker:
                                         "🔔 *Reminder Tugas!*\n\n"
                                         f"📝 *Tugas:* {task['name']}\n"
                                         f"📖 *Deskripsi:* {task['description']}\n"
-                                        f"⏰ *Deadline:* {notify_datetime.strftime('%d/%m/%Y %H:%M')}\n"
+                                        f"⏰ *Deadline:* {deadline_display}\n"
                                         f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
                                         "Hai, udah H-3 nih! Jangan lupa untuk menyelesaikan tugas ini ya! 🎯"
                                     )
@@ -84,7 +100,7 @@ class NotificationWorker:
                                         "🔔 *Reminder Tugas!*\n\n"
                                         f"📝 *Tugas:* {task['name']}\n"
                                         f"📖 *Deskripsi:* {task['description']}\n"
-                                        f"⏰ *Deadline:* {notify_datetime.strftime('%d/%m/%Y %H:%M')}\n"
+                                        f"⏰ *Deadline:* {deadline_display}\n"
                                         f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
                                         "Jgn lupa ya, udah 24 jam terakhir! 🚨"
                                     )
@@ -93,7 +109,7 @@ class NotificationWorker:
                                         "🔔 *Reminder Tugas!*\n\n"
                                         f"📝 *Tugas:* {task['name']}\n"
                                         f"📖 *Deskripsi:* {task['description']}\n"
-                                        f"⏰ *Deadline:* {notify_datetime.strftime('%d/%m/%Y %H:%M')}\n"
+                                        f"⏰ *Deadline:* {deadline_display}\n"
                                         f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
                                         "Gimana udah diupload? Jgn sampe terlambat! ⚡"
                                     )
@@ -110,13 +126,13 @@ class NotificationWorker:
                                     .execute()
                     
                     except Exception as e:
-                        print(f"Error processing notification: {e}")
+                        logger.error(f"Error processing notification: {e}")
                         continue
                 
                 # Sleep for 60 seconds before next check
                 await asyncio.sleep(60)
                 
             except Exception as e:
-                print(f"Error in notification worker: {e}")
+                logger.error(f"Error in notification worker: {e}")
                 # Sleep for 60 seconds on error
                 await asyncio.sleep(60) 

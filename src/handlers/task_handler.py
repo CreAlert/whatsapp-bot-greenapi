@@ -229,16 +229,28 @@ class TaskHandler:
             selected_day_id = notification.message_text
             
             state_data = notification.state_manager.get_state_data(notification.sender)
-            selected_class_id = state_data.get("selected_class_id")
+            selected_class_id_str = state_data.get("selected_class_id")
+            
+            if not selected_class_id_str:
+                notification.answer("Terjadi kesalahan: Kelas belum dipilih. Silakan ulangi dari awal.")
+                self.start_flow_handler(notification)
+                return
+
+            try:
+                selected_class_id = int(selected_class_id_str)
+            except ValueError:
+                notification.answer("Terjadi kesalahan: Format ID kelas tidak valid. Silakan ulangi.")
+                self.start_flow_handler(notification)
+                return
             
             # Get day name
-            day_response = supabase.table('days').select('name').eq('id', selected_day_id).execute()
+            day_response = supabase.table('days').select('name').eq('id', int(selected_day_id)).execute()
             day_name = day_response.data[0]['name']
             
             # Get tasks from database
             query = supabase.table('tasks').select('*, classes(name), days(name)') \
                 .eq('class_id', selected_class_id) \
-                .eq('day_id', selected_day_id) \
+                .eq('day_id', int(selected_day_id)) \
                 .order('due_date')
             
             tasks_response = query.execute()
@@ -268,7 +280,8 @@ class TaskHandler:
                 {
                     "tasks": tasks,
                     "selected_day_id": selected_day_id,
-                    **notification.state_manager.get_state_data(notification.sender)
+                    "selected_class_id": str(selected_class_id),
+                    "state_history": (notification.state_manager.get_state_data(notification.sender) or {}).get("state_history", [])
                 }
             )
             
@@ -304,17 +317,27 @@ class TaskHandler:
             
             state_data = notification.state_manager.get_state_data(notification.sender)
             tasks = state_data.get("tasks", [])
+            
+            if not (0 <= task_idx < len(tasks)):
+                self.show_invalid_message(notification, States.TASK_LIST)
+                return
+                
             task = tasks[task_idx]
             
+            if 'due_date' not in task or not task['due_date']:
+                notification.answer("Terjadi kesalahan: Informasi deadline tugas tidak lengkap.")
+                self.day_selection_handler(notification)
+                return
+
             due_date = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
             due_date_str = due_date.strftime('%d/%m/%Y %H:%M')
             
             message = (
                 f"📚 *Detail Tugas:*\n\n"
-                f"📝 *Nama:* {task['name']}\n"
-                f"📖 *Deskripsi:* {task['description']}\n"
+                f"📝 *Nama:* {task.get('name', 'N/A')}\n"
+                f"📖 *Deskripsi:* {task.get('description', 'N/A')}\n"
                 f"⏰ *Deadline:* {due_date_str}\n"
-                f"📂 *Jenis:* {task['jenis_tugas'].capitalize()}\n\n"
+                f"📂 *Jenis:* {task.get('jenis_tugas', 'N/A').capitalize()}\n\n"
                 "Apakah ingin diingatkan untuk tugas ini?\n"
                 "1. ✅ Ya\n"
                 "2. ❌ Tidak\n"
@@ -328,7 +351,10 @@ class TaskHandler:
                 notification.sender,
                 {
                     "selected_task": task,
-                    **notification.state_manager.get_state_data(notification.sender)
+                    "tasks": tasks,
+                    "selected_day_id": state_data.get("selected_day_id"),
+                    "selected_class_id": state_data.get("selected_class_id"),
+                    "state_history": state_data.get("state_history", [])
                 }
             )
             

@@ -4,6 +4,12 @@ from datetime import datetime
 import logging
 from ..config import States, supabase, is_admin
 from ..utils import update_state_with_history
+try:
+    from zoneinfo import ZoneInfo
+    indonesia_tz = ZoneInfo("Asia/Jakarta")
+except ImportError:
+    import pytz
+    indonesia_tz = pytz.timezone("Asia/Jakarta")
 
 logger = logging.getLogger(__name__)
 
@@ -391,11 +397,10 @@ class AdminHandler:
         def admin_task_deadline_handler(notification):
             """Handle task deadline input in admin flow"""
             state_data = notification.state_manager.get_state_data(notification.sender) or {}
-            # Ensure admin_task_in_progress exists and is a dict
             admin_task_in_progress = state_data.get("admin_task_in_progress")
             if not isinstance(admin_task_in_progress, dict):
                 logger.error("admin_task_in_progress is not a dict or missing. Resetting flow.")
-                self.start_add_task_flow(notification) # Or handle error more gracefully
+                self.start_add_task_flow(notification)
                 return
                 
             history = state_data.get("state_history", [])
@@ -415,22 +420,27 @@ class AdminHandler:
                 return
 
             try:
-                due_date = datetime.strptime(notification.message_text.strip(), "%d-%m-%Y %H:%M")
-                if due_date < datetime.now():
+                # Parse the input as naive datetime
+                naive_due_date = datetime.strptime(notification.message_text.strip(), "%d-%m-%Y %H:%M")
+                # Make it timezone aware (WIB)
+                aware_due_date = naive_due_date.replace(tzinfo=indonesia_tz)
+                
+                # Check if deadline is in the past
+                if aware_due_date < datetime.now(indonesia_tz):
                     raise ValueError("Deadline tidak boleh di masa lalu")
 
                 selected_day_id_str = admin_task_in_progress.get("selected_day_id")
                 if not selected_day_id_str:
                      raise ValueError("selected_day_id missing from state")
                 selected_day_id = int(selected_day_id_str)
-                deadline_weekday = due_date.weekday() + 1 
+                deadline_weekday = aware_due_date.weekday() + 1 
 
                 if deadline_weekday != selected_day_id:
                     day_response = supabase.table("days").select("name").eq("id", selected_day_id).execute()
                     selected_day_name = day_response.data[0]["name"] if day_response.data else f"Hari ID {selected_day_id}"
                     notification.answer(
                         f"⚠️ *Input tidak valid!*\n\n"
-                        f"Tanggal deadline yang kamu masukkan ({due_date.strftime('%A, %d-%m-%Y')}) tidak jatuh pada hari {selected_day_name}.\n\n"
+                        f"Tanggal deadline yang kamu masukkan ({aware_due_date.strftime('%A, %d-%m-%Y')}) tidak jatuh pada hari {selected_day_name}.\n\n"
                         "Silakan:\n"
                         "1. Masukkan kembali deadline yang sesuai.\n"
                         "2. Ketik 'ulang hari' untuk memilih hari pengumpulan yang berbeda.\n"
@@ -458,14 +468,14 @@ class AdminHandler:
                 return
             admin_id = admin_response.data[0]["id"]
 
-            # Construct task_data directly from admin_task_in_progress
+            # Construct task_data with timezone-aware due_date
             task_to_save = {
                 "class_id": int(admin_task_in_progress["selected_class_id"]),
                 "day_id": int(admin_task_in_progress["selected_day_id"]),
                 "name": admin_task_in_progress["task_name"],
                 "description": admin_task_in_progress["task_description"],
                 "jenis_tugas": admin_task_in_progress["task_type"],
-                "due_date": due_date.isoformat(), # Use the validated due_date
+                "due_date": aware_due_date.isoformat(), # This will include timezone info
                 "created_by": admin_id
             }
             
@@ -485,7 +495,7 @@ class AdminHandler:
                         f"📅 Hari: {day_name}\n"
                         f"📝 Tugas: {task_to_save['name']}\n"
                         f"📂 Jenis: {task_to_save['jenis_tugas'].capitalize()}\n"
-                        f"⏰ Deadline: {due_date.strftime('%d %B %Y %H:%M')}"
+                        f"⏰ Deadline: {aware_due_date.strftime('%d %B %Y %H:%M')}"
                     )
 
                     # CRITICAL: Reset admin_task_in_progress after successful save, keeping history
