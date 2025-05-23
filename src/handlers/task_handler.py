@@ -5,6 +5,15 @@ from ..utils import update_state_with_history, calculate_notification_times, sav
 import asyncio
 import logging
 
+try:
+    from zoneinfo import ZoneInfo
+    utc_tz = ZoneInfo("UTC")
+    indonesia_tz = ZoneInfo("Asia/Jakarta")
+except ImportError:
+    import pytz
+    utc_tz = pytz.utc
+    indonesia_tz = pytz.timezone("Asia/Jakarta")
+
 logger = logging.getLogger(__name__)
 
 class TaskHandler:
@@ -143,7 +152,7 @@ class TaskHandler:
                             "Reminder akan dikirim:\n"
                             "- 3 hari sebelum\n"
                             "- 1 hari sebelum\n"
-                            "- 3 jam sebelum"
+                            "- 1 jam sebelum"
                         )
                         # Show task menu after setting reminder
                         notification.answer(
@@ -288,8 +297,10 @@ class TaskHandler:
             # Format tasks list
             tasks_list = ""
             for idx, task in enumerate(tasks, 1):
-                due_date = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
-                due_date_str = due_date.strftime('%d/%m/%Y %H:%M')
+                # Convert UTC to WIB
+                due_date_utc = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
+                due_date_wib = due_date_utc.astimezone(indonesia_tz)
+                due_date_str = due_date_wib.strftime('%d/%m/%Y %H:%M WIB')
                 tasks_list += (
                     f"{idx}. {task['name']}\n"
                     f"🗒️ {task['description']}\n"
@@ -329,8 +340,10 @@ class TaskHandler:
                 self.day_selection_handler(notification)
                 return
 
-            due_date = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
-            due_date_str = due_date.strftime('%d/%m/%Y %H:%M')
+            # Convert UTC to WIB
+            due_date_utc = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
+            due_date_wib = due_date_utc.astimezone(indonesia_tz)
+            due_date_str = due_date_wib.strftime('%d/%m/%Y %H:%M WIB')
             
             message = (
                 f"📚 *Detail Tugas:*\n\n"
