@@ -159,9 +159,13 @@ async def main():
             print("### PYPRINT WARNING ### bot.py main(): notification_worker_instance is None. Worker not started.")
             logger.warning("notification_worker_instance is None. Worker not started.")
         
-        print("### PYPRINT ### bot.py main(): Starting GreenAPIBot event loop (bot.run_forever()).")
-        logger.info("Main: Starting GreenAPIBot event loop (bot.run_forever()).")
-        await bot_instance.run_forever() # Pastikan menggunakan bot_instance
+        # print("### PYPRINT ### bot.py main(): Starting GreenAPIBot event loop (bot.run_forever()).")
+        # logger.info("Main: Starting GreenAPIBot event loop (bot.run_forever()).")
+        # await bot_instance.run_forever() # Commented out for worker testing
+
+        logger.info("Main: SKIPPING bot.run_forever() for testing worker. Main thread will sleep for 120s.")
+        print("### PYPRINT ### bot.py main(): Sleeping for 120s to test worker isolation.")
+        await asyncio.sleep(120) # Added for worker testing
             
     except KeyboardInterrupt:
         print("### PYPRINT ### bot.py main(): KeyboardInterrupt in main try block.")
