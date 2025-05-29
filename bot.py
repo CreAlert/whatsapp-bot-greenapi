@@ -2,6 +2,7 @@
 import os
 import logging
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from whatsapp_chatbot_python import GreenAPIBot
 from src.config import States
 from src.handlers.task_handler import TaskHandler
@@ -132,54 +133,107 @@ async def main():
         else: initial_handler(notification)
     # --- AKHIR SETUP ROUTER MESSAGE ---
 
-    worker_task = None 
-    try:
-        if notification_worker_instance: 
+    # Dapatkan event loop asyncio saat ini
+    loop = asyncio.get_event_loop()
+
+    # Buat ThreadPoolExecutor untuk menjalankan bot di thread terpisah
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='GreenAPIBotThread')
+
+    # Flag untuk menjaga loop utama tetap berjalan jika worker tidak ada
+    keep_main_loop_running = True
+
+    # Fungsi yang akan menjalankan bot_instance.run_forever() di thread terpisah
+    def run_bot_in_thread():
+        try:
+            logger.info("GreenAPIBotThread: Starting bot_instance.run_forever() in a separate thread.")
+            bot_instance.run_forever()
+            logger.info("GreenAPIBotThread: bot_instance.run_forever() has unexpectedly exited.")
+        except Exception as e_thread:
+            logger.error(f"GreenAPIBotThread: Exception within bot_instance.run_forever(): {e_thread}", exc_info=True)
+
+    # Inisialisasi dan mulai NotificationWorker
+    worker_main_task = None
+    if notification_worker_instance:
+        try:
             print("### PYPRINT ### bot.py main(): Attempting to start NotificationWorker.")
             logger.info("Main: Attempting to start NotificationWorker.")
-            worker_task = await notification_worker_instance.start() 
-            print(f"### PYPRINT ### bot.py main(): NotificationWorker.start() returned. Task object: {worker_task}")
-            logger.info(f"Main: NotificationWorker.start() returned. Task object: {worker_task}")
+            worker_main_task = await notification_worker_instance.start()
+            print(f"### PYPRINT ### bot.py main(): NotificationWorker.start() returned. Task object: {worker_main_task}")
+            logger.info(f"Main: NotificationWorker started. Task object: {worker_main_task}")
 
-            if worker_task:
+            if worker_main_task:
                 print("### PYPRINT ### bot.py main(): Worker task exists. Adding 15s delay for observation...")
                 logger.info("Main: Worker task exists. Adding 15 seconds delay for observation...")
-                await asyncio.sleep(15) 
+                await asyncio.sleep(15)
                 print("### PYPRINT ### bot.py main(): 15s observation finished.")
                 logger.info("Main: 15-second observation finished.")
-                if worker_task.done():
+                if worker_main_task.done():
                     logger.warning("Main: Worker task IS DONE during observation. UNEXPECTED. Check logs.")
-                    try: await worker_task 
-                    except Exception as e_wt_done: logger.error(f"Main: Exception from awaiting worker_task: {e_wt_done}", exc_info=True)
-                else: logger.info("Main: Worker task is still running. Expected.")
+                    try:
+                        await worker_main_task
+                    except Exception as e_wt_done:
+                        logger.error(f"Main: Exception from awaiting worker_task: {e_wt_done}", exc_info=True)
+                else:
+                    logger.info("Main: Worker task is still running. Expected.")
             else:
                 print("### PYPRINT ERROR ### bot.py main(): Worker task NOT created.")
                 logger.error("Main: Worker task was NOT created. Check NotificationWorker.start() logs.")
-        else:
-            print("### PYPRINT WARNING ### bot.py main(): notification_worker_instance is None. Worker not started.")
-            logger.warning("notification_worker_instance is None. Worker not started.")
-        
-        # print("### PYPRINT ### bot.py main(): Starting GreenAPIBot event loop (bot.run_forever()).")
-        # logger.info("Main: Starting GreenAPIBot event loop (bot.run_forever()).")
-        # await bot_instance.run_forever() # Commented out for worker testing
+        except Exception as e_worker_start:
+            logger.error(f"Main: Error starting NotificationWorker: {e_worker_start}", exc_info=True)
+    else:
+        print("### PYPRINT WARNING ### bot.py main(): notification_worker_instance is None. Worker not started.")
+        logger.warning("notification_worker_instance is None. Worker not started.")
 
-        logger.info("Main: SKIPPING bot.run_forever() for testing worker. Main thread will sleep for 120s.")
-        print("### PYPRINT ### bot.py main(): Sleeping for 120s to test worker isolation.")
-        await asyncio.sleep(120) # Added for worker testing
-            
+    # Jadwalkan fungsi blocking bot untuk berjalan di thread executor
+    bot_thread_future = loop.run_in_executor(executor, run_bot_in_thread)
+    logger.info("Main: bot_instance.run_forever() has been scheduled to run in a separate thread.")
+
+    try:
+        if worker_main_task:
+            logger.info("Main: Awaiting NotificationWorker task. Bot is running in a separate thread.")
+            await worker_main_task
+        else:
+            logger.info("Main: NotificationWorker not active. Bot is running in a separate thread. Main loop will idle, waiting for KeyboardInterrupt.")
+            while keep_main_loop_running:
+                await asyncio.sleep(1)
+
     except KeyboardInterrupt:
-        print("### PYPRINT ### bot.py main(): KeyboardInterrupt in main try block.")
-        logger.info("Main: KeyboardInterrupt in main try block.")
-    except Exception as e:
-        print(f"### PYPRINT ERROR ### bot.py main(): Error in main execution: {e}")
-        logger.error(f"Error in main: {e}", exc_info=True)
+        logger.info("Main: KeyboardInterrupt received by user. Initiating shutdown...")
+        keep_main_loop_running = False
+    except Exception as e_main_unhandled:
+        logger.error(f"Main: An unhandled exception occurred in the main asyncio task: {e_main_unhandled}", exc_info=True)
     finally:
-        print("### PYPRINT ### bot.py main(): Finally block reached.")
-        logger.info("Main: Finally block reached. Attempting to stop notification worker.")
-        if notification_worker_instance: 
+        logger.info("Main: Finally block reached. Starting shutdown sequence.")
+
+        # 1. Hentikan Notification Worker
+        if notification_worker_instance and notification_worker_instance.running:
+            logger.info("Main: Attempting to stop NotificationWorker...")
             await notification_worker_instance.stop()
-        logger.info("Main: Notification worker stop process initiated. Main function exiting.")
-        print("### PYPRINT ### bot.py main(): Main function finally block finished.")
+            logger.info("Main: NotificationWorker stop process initiated.")
+        elif worker_main_task and not worker_main_task.done():
+            logger.info("Main: NotificationWorker task was not stopped via instance, cancelling task directly...")
+            worker_main_task.cancel()
+            try:
+                await worker_main_task
+            except asyncio.CancelledError:
+                logger.info("Main: NotificationWorker task successfully cancelled.")
+            except Exception as e_worker_await_cancel:
+                logger.error(f"Main: Error awaiting cancelled worker task: {e_worker_await_cancel}", exc_info=True)
+
+        # 2. Menghentikan Bot di Thread Executor
+        logger.info("Main: Attempting to deal with the bot runner thread.")
+        if hasattr(bot_instance, 'stop_receiving_notifications'):
+            try:
+                logger.info("Main: Attempting to call a stop method on bot_instance (e.g., stop_receiving_notifications).")
+                # bot_instance.stop_receiving_notifications() # Uncomment if available
+            except Exception as e_bot_stop_method:
+                logger.error(f"Main: Error calling stop method on bot_instance: {e_bot_stop_method}")
+
+        logger.info("Main: Shutting down ThreadPoolExecutor. This will wait for the bot thread to finish if possible.")
+        executor.shutdown(wait=True)
+        logger.info("Main: ThreadPoolExecutor shutdown process complete.")
+        
+        logger.info("Main: Application shutdown sequence finished.")
 
 if __name__ == "__main__":
     print("### PYPRINT ### bot.py: Script execution started from __main__.")
