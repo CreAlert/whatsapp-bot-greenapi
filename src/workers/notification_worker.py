@@ -113,7 +113,7 @@ class NotificationWorker:
                 cycle_count += 1
                 current_time_utc = datetime.now(UTC_TZ_FOR_WORKER)
                 print(f"### PYPRINT _RUN ### Cycle {cycle_count}. Current UTC: {current_time_utc.isoformat()}")
-                logger.info(f"NotificationWorker: Cycle {cycle_count}. Current UTC time for checks: {current_time_utc.isoformat()}")
+                logger.info(f"NotificationWorker: Cycle {cycle_count} START. Current UTC: {current_time_utc.isoformat()}. self.running: {self.running}")
                 
                 try:
                     logger.debug("NotificationWorker: Fetching unsent notifications from database...")
@@ -127,27 +127,29 @@ class NotificationWorker:
                     )
                     
                     if hasattr(response, 'error') and response.error:
-                        logger.error(f"NotificationWorker: Supabase error fetching notifications: {response.error}")
+                        logger.error(f"NotificationWorker: Supabase error fetching notifications in cycle {cycle_count}: {response.error}")
+                        logger.info(f"NotificationWorker: Cycle {cycle_count} will sleep for 60s due to Supabase fetch error and then continue.")
                         await asyncio.sleep(60)
                         continue
                     
                     notifications_data = response.data
                     if notifications_data is None:
-                        logger.warning("NotificationWorker: Fetched notifications data is None. Assuming empty list. Response raw: %s", response)
+                        logger.warning(f"NotificationWorker: Fetched notifications data is None in cycle {cycle_count}. Assuming empty. Response: {response}")
                         notifications_data = []
 
                     logger.info(f"NotificationWorker: Found {len(notifications_data)} unsent notification records in cycle {cycle_count}.")
                     
                     if not notifications_data:
-                        logger.info("NotificationWorker: No pending notifications to process in this cycle.")
+                        logger.info(f"NotificationWorker: No pending notifications to process in this cycle {cycle_count}.")
 
-                    for item in notifications_data:
+                    for item_index, item in enumerate(notifications_data):
                         notification_id = item.get('id')
                         phone_number = item.get('phone_number')
                         task_details = item.get('tasks')
                         notify_time_str = item.get('notification_time')
                         reminder_type = item.get('reminder_type', 'N/A')
 
+                        logger.info(f"NotificationWorker: Cycle {cycle_count}, Processing item {item_index + 1}/{len(notifications_data)}, Notif ID: {notification_id}")
                         print(f"### PYPRINT _RUN ### Processing record ID: {notification_id}, phone: {phone_number}, type: {reminder_type}")
                         logger.debug(f"NotificationWorker: Processing record ID: {notification_id}, phone: {phone_number}, type: {reminder_type}")
 
@@ -243,21 +245,48 @@ class NotificationWorker:
                         except Exception as e_inner:
                             logger.error(f"NotificationWorker: Error processing notification ID {notification_id}: {e_inner}", exc_info=True)
                     
+                    logger.info(f"NotificationWorker: Finished processing all items (if any) in cycle {cycle_count}.")
                     sleep_duration = 30
                     print(f"### PYPRINT _RUN ### Cycle {cycle_count} finished. Sleeping {sleep_duration}s.")
-                    logger.debug(f"NotificationWorker: Cycle {cycle_count} finished. Sleeping for {sleep_duration} seconds.")
+                    logger.info(f"NotificationWorker: Cycle {cycle_count} COMPLETED successfully. Preparing to sleep for {sleep_duration}s.")
                     await asyncio.sleep(sleep_duration)
+                    logger.info(f"NotificationWorker: Cycle {cycle_count} AWAKENED after {sleep_duration}s sleep.")
                     
                 except Exception as e_main_loop_try:
-                    logger.error(f"NotificationWorker: Error in main try block of worker cycle {cycle_count}: {e_main_loop_try}", exc_info=True)
-                    await asyncio.sleep(60)  # Tunggu lebih lama jika ada error di siklus utama
+                    logger.error(f"NotificationWorker: Uncaught error in main processing block of worker cycle {cycle_count}: {e_main_loop_try}", exc_info=True)
+                    logger.info(f"NotificationWorker: Cycle {cycle_count} will sleep for 60s due to unhandled error in processing block and then continue.")
+                    await asyncio.sleep(60)
+                    continue
+
+            logger.info(f"NotificationWorker._run: Gracefully exited 'while self.running' loop. self.running is {self.running}. Total cycles: {cycle_count}.")
 
         except ImportError as e_imp:
             print(f"### PYPRINT _RUN ERROR ### CRITICAL IMPORT ERROR in _run task: {e_imp}")
             logger.critical(f"NotificationWorker._run: CRITICAL IMPORT ERROR in _run task: {e_imp}", exc_info=True)
+            self.running = False
         except Exception as e_very_outer:
             print(f"### PYPRINT _RUN ERROR ### CRITICAL UNHANDLED EXCEPTION in _run task: {e_very_outer}")
-            logger.critical(f"NotificationWorker._run: CRITICAL UNHANDLED EXCEPTION in _run task: {e_very_outer}", exc_info=True)
+            logger.critical(f"NotificationWorker._run: CRITICAL UNHANDLED EXCEPTION in _run task (outside main while loop): {e_very_outer}", exc_info=True)
+            self.running = False
         finally:
             print(f"### PYPRINT _RUN ### Method _run FINALLY block. self.running is {self.running}")
+            task_status = "No task object or self.task not set"
+            if hasattr(self, 'task') and self.task:
+                task_is_done = self.task.done()
+                task_is_cancelled = self.task.cancelled()
+                task_exception_info = "N/A"
+                if task_is_done and not task_is_cancelled:
+                    try:
+                        exception = self.task.exception()
+                        if exception:
+                            task_exception_info = str(exception)
+                        else:
+                            task_exception_info = "No exception"
+                    except asyncio.InvalidStateError:
+                        task_exception_info = "InvalidStateError (task not truly done?)"
+                
+                task_status = (f"Task Name: {self.task.get_name()}, Done: {task_is_done}, "
+                               f"Cancelled: {task_is_cancelled}, Exception: {task_exception_info}")
+
+            logger.info(f"NotificationWorker._run: FINALLY block reached. self.running is {self.running}. Status of this worker's task: {task_status}")
             logger.info("NotificationWorker._run: Method exiting. self.running is %s", self.running)
