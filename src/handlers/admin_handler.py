@@ -257,7 +257,9 @@ class AdminHandler:
                 "*📂 Pilih Jenis Tugas:*\n\n"
                 "1. Mandiri\n"
                 "2. Kelompok\n"
-                "3. Ujian\n\n"
+                "3. Ujian\n"
+                "4. Quiz\n"
+                "5. Project\n\n"
                 "_Note:_\n"
                 "Ketik angka sesuai pilihan\n"
                 "Ketik 0 untuk kembali ke Home"
@@ -288,14 +290,16 @@ class AdminHandler:
                 update_state_with_history(notification, States.ADMIN_TASK_NAME)
                 return
 
-            task_types = {"1": "mandiri", "2": "kelompok", "3": "ujian"}
+            task_types = {"1": "mandiri", "2": "kelompok", "3": "ujian", "4": "quiz", "5": "project"}
             if notification.message_text not in task_types:
                 notification.answer(
                     "⚠️ *Input tidak valid!*\n\n"
                     "*📂 Pilih Jenis Tugas:*\n\n"
                     "1. Mandiri\n"
                     "2. Kelompok\n"
-                    "3. Ujian\n\n"
+                    "3. Ujian\n"
+                    "4. Quiz\n"
+                    "5. Project\n\n"
                     "_Note:_\n"
                     "Ketik angka sesuai pilihan\n"
                     "Ketik 0 untuk kembali ke Home"
@@ -331,7 +335,9 @@ class AdminHandler:
                     "*📂 Pilih Jenis Tugas:*\n\n"
                     "1. Mandiri\n"
                     "2. Kelompok\n"
-                    "3. Ujian\n\n"
+                    "3. Ujian\n"
+                    "4. Quiz\n"
+                    "5. Project\n\n"
                     "_Note:_\n"
                     "Ketik angka sesuai pilihan\n"
                     "Ketik 0 untuk kembali ke Home"
