@@ -123,7 +123,7 @@ class TaskHandler:
 
             day_list_str = "\n".join(day_details_list)
             message = (prefix_message + "🗓️ *Pilih Hari Pengumpulan:* 🗓️\n\n" + day_list_str +
-                       "\n\n_Note:_\nKetik angka pilihan.\nKetik 0 untuk ke Pilihan Kelas.")
+                       "\n\n_Note:_\nAngka di sebelah nama hari menunjukkan jumlah tugas pada hari tersebut.\nKetik angka pilihan.\nKetik 0 untuk ke Pilihan Kelas.")
             notification.answer(message)
             return True
         except Exception as e:
